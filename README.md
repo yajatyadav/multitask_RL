@@ -1,6 +1,6 @@
 <div align="center">
 
-# [Reinforcement Learning for Action Chunking](https://arxiv.org/abs/2507.07969)
+# [Reinforcement Learning with Action Chunking](https://arxiv.org/abs/2507.07969)
 
 </div>
 
