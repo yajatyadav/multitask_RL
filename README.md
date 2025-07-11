@@ -1,6 +1,6 @@
 <div align="center">
 
-# [Reinforcement Learning for Action Chunking](https://arxiv.org/abs/xxxx.xxxxx)
+# [Reinforcement Learning for Action Chunking](https://arxiv.org/abs/2507.07969)
 
 </div>
 
@@ -64,7 +64,7 @@ MUJOCO_GL=egl python main_online.py --env_name=cube-triple-play-singletask-task2
   title  = {Sample-Efficient Reinforcement Learning with Action Chunking},
   conference = {arXiv Pre-print},
   year = {2025},
-  url = {http://arxiv.org/abs/xxxx.xxxxx},
+  url = {http://arxiv.org/abs/2507.07969},
 }
 ```
 
