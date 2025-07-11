@@ -69,4 +69,4 @@ MUJOCO_GL=egl python main_online.py --env_name=cube-triple-play-singletask-task2
 ```
 
 ## Acknowledgments
-This codebase is built on top of [FQL](https://github.com/seohongpark/fql).
+This codebase is built on top of [FQL](https://github.com/seohongpark/fql). The two rlpd_* folders are directly taken from [RLPD](https://github.com/ikostrikov/rlpd).
