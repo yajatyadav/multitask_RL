@@ -2,6 +2,8 @@
 
 # [Reinforcement Learning with Action Chunking](https://arxiv.org/abs/2507.07969)
 
+## [[website](https://colinqiyangli.github.io/qc/)]      [[pdf](https://arxiv.org/pdf/2507.07969)]
+
 </div>
 
 <p align="center">
