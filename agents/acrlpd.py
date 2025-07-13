@@ -28,7 +28,7 @@ class Temperature(nn.Module):
 
 
 class ACRLPDAgent(flax.struct.PyTreeNode):
-    """Soft actor-critic (SAC) agent.
+    """Soft actor-critic (SAC) agent with action chunking.
 
     This agent can also be used for reinforcement learning with prior data (RLPD).
     """
@@ -47,7 +47,6 @@ class ACRLPDAgent(flax.struct.PyTreeNode):
 
         rng, sample_rng = jax.random.split(rng)
 
-        # breakpoint()
         next_dist = self.network.select('actor')(batch['next_observations'][..., -1, :])
         next_actions = next_dist.sample(seed=sample_rng)
 
@@ -154,7 +153,6 @@ class ACRLPDAgent(flax.struct.PyTreeNode):
     @jax.jit
     def batch_update(self, batch):
         """Update the agent and return a new agent with information dictionary."""
-        # update_size = batch["observations"].shape[0]
         agent, infos = jax.lax.scan(self._update, self, batch)
         return agent, jax.tree_util.tree_map(lambda x: x.mean(), infos)
     
