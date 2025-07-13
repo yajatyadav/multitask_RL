@@ -13,9 +13,6 @@ from utils.networks import ActorVectorField, Value
 
 class ACFQLAgent(flax.struct.PyTreeNode):
     """Flow Q-learning (FQL) agent with action chunking. 
-    The actor is shared between all Q function of different chunk lengths.
-    The actor always predicts action chunks, and is shared between all Q functions.
-    There are chunked critics and non-chunked critics.
     """
 
     rng: Any
