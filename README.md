@@ -17,7 +17,7 @@
 
 
 ## Overview
-Q-chunking runs RL on a *temporally extended action (action chunking) space* with an expressive behavior constraint to leverage prior data for improved exploration and online sample efficiency.`
+Q-chunking runs RL on a *temporally extended action (action chunking) space* with an expressive behavior constraint to leverage prior data for improved exploration and online sample efficiency.
 
 ## Installation
 ```bash
