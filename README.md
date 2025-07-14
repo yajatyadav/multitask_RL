@@ -7,10 +7,17 @@
 </div>
 
 <p align="center">
-  <img alt="teaser figure" src="./assets/teaser.png" width="48%">
-  <img alt="aggregated results" src="./assets/agg.png" width="48%">
+  <a href="https://colinqiyangli.github.io/qc/">
+    <img alt="teaser figure" src="./assets/teaser.png" width="48%">
+  </a>
+  <a href="https://colinqiyangli.github.io/qc/">
+    <img alt="aggregated results" src="./assets/agg.png" width="48%">
+  </a>
 </p>
 
+
+## Overview
+Q-chunking runs RL on a *temporally extended action (action chunking) space* with an expressive behavior constraint to leverage prior data for improved exploration and online sample efficiency.
 
 ## Installation
 ```bash
