@@ -36,7 +36,7 @@ and include this flag in the command line `--ogbench_dataset_dir=[realpath/to/yo
 
 ## Reproducing paper results
 
-We include the example command for all the methods we evaluate in our paper below. For `scene` and `puzzle-3x3` domains, use `--sparse=True`. 
+We include the example command for all the methods we evaluate in our paper below. For `scene` and `puzzle-3x3` domains, use `--sparse=True`. We also release our plot data at [plot_data/README.md](plot_data/README.md).
 
 ```bash
 # QC
