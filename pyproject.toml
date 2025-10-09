@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multitask_RL"
+version = "0.1.0"
+description = "Repository for multitask_RL implementations and experiments"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "jax[cuda12]==0.5.3",
+    "flax==0.10.2",
+    "torch==2.7.1",
+    "tensorflow>=2.15.0",
+    "tensorflow-datasets>=4.9.9",
+    "numpy>=1.22.4,<2.0.0",
+    "einops>=0.8.0",
+    "transformers==4.53.2",
+    "sentencepiece>=0.2.0",
+    "pillow>=11.0.0",
+    "opencv-python>=4.10.0.84",
+    "tqdm>=4.66.0",
+    "wandb>=0.19.1",
+    "dlimp",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.29.0",
+    "ipywidgets>=8.1.0",
+    "matplotlib>=3.8.0",
+    "ml_collections>=0.1.1",
+    "distrax>=0.1.5",
+]
+
+[project.urls]
+Repository = "https://github.com/yajatyadav/multitask_RL"
+
+[tool.uv.sources]
+dlimp = { git = "https://github.com/yajatyadav/dlimp", branch = "main" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["cache"]
