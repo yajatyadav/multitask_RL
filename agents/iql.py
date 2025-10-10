@@ -229,7 +229,7 @@ class IQLAgent(flax.struct.PyTreeNode):
         network_args = {k: v[1] for k, v in network_info.items()}
 
         network_def = ModuleDict(networks)
-        network_tx = optax.adam(learning_rate=config['lr'])
+        network_tx = optax.adam(learning_rate=config['lr']) # TODO(YY): support other optimizers / LR Schedules?
         network_params = network_def.init(init_rng, **network_args)['params']
         network = TrainState.create(network_def, network_params, tx=network_tx)
 

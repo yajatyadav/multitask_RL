@@ -58,10 +58,11 @@ def decode_and_resize(
 
     for name in image_names:
         if name not in resize_size:
-            logging.warning(
-                f"No resize_size was provided for image_{name}. This will result in 1x1 "
-                "padding images, which may cause errors if you mix padding and non-padding images."
-            )
+            pass
+            # logging.warning(
+                # f"No resize_size was provided for image_{name}. This will result in 1x1 "
+                # "padding images, which may cause errors if you mix padding and non-padding images."
+            # )
         image = obs[f"image_{name}"]
         if image.dtype == tf.string:
             if tf.strings.length(image) == 0:

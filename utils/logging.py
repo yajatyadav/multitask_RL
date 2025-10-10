@@ -8,6 +8,8 @@ import numpy as np
 import wandb
 from PIL import Image, ImageEnhance
 
+from rich.tree import Tree
+
 
 class CsvLogger:
     """CSV logger for logging metrics to a CSV file."""
@@ -60,7 +62,7 @@ def get_flag_dict():
 
 
 def setup_wandb(
-    entity=None,
+    entity='yajatyadav',
     project='project',
     group=None,
     name=None,
@@ -144,3 +146,26 @@ def get_wandb_video(renders=None, n_cols=None, fps=15):
     renders = reshape_video(renders, n_cols)  # (t, c, nr * h, nc * w)
 
     return wandb.Video(renders, fps=fps, format='mp4')
+
+
+
+def build_network_tree(params, name="Network Parameters"):
+    """Build a rich Tree visualization with colors"""
+    tree = Tree(f"[bold cyan]{name}[/bold cyan]")
+    
+    def add_nodes(parent, data):
+        items = list(data.items())
+        for key, value in items:
+            if isinstance(value, dict):
+                # It's a submodule
+                branch = parent.add(f"[bold yellow]{key}/[/bold yellow]")
+                add_nodes(branch, value)
+            else:
+                # It's a parameter
+                shape = f"{value.shape}" if hasattr(value, 'shape') else ""
+                dtype = f"[dim]{value.dtype}[/dim]" if hasattr(value, 'dtype') else ""
+                size = f"{value.size:,}" if hasattr(value, 'size') else ""
+                parent.add(f"[green]{key}[/green]: {shape} {dtype} [dim]({size} params)[/dim]")
+    
+    add_nodes(tree, params)
+    return tree

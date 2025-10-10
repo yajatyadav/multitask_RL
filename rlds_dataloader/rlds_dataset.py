@@ -528,7 +528,7 @@ def make_interleaved_dataset(
         _, dataset_statistics = make_dataset_from_rlds(**data_kwargs, train=train)
         dataset_sizes.append(dataset_statistics["num_transitions"])
         all_dataset_statistics[dataset_kwargs["name"]] = dataset_statistics
-        print("THIS DATASET HAS TOTAL NUM_TRAJECTORIES", dataset_statistics["num_trajectories"], " AND NUM_TRANSITIONS", dataset_statistics["num_transitions"])
+        # print("THIS DATASET HAS TOTAL NUM_TRAJECTORIES", dataset_statistics["num_trajectories"], " AND NUM_TRANSITIONS", dataset_statistics["num_transitions"])
 
     # Get the indices of the "primary" datasets (i.e., datasets with sample_weight == 1.0)
     primary_dataset_indices = np.array([idx for idx in range(len(sample_weights)) if sample_weights[idx] == 1.0])
