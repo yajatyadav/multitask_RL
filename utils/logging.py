@@ -148,6 +148,32 @@ def get_wandb_video(renders=None, n_cols=None, fps=15):
     return wandb.Video(renders, fps=fps, format='mp4')
 
 
+def get_sample_input_output_log_to_wandb(batch):
+    """Log sample input and output to wandb."""
+    def log_obs(obs, obs_type):
+        image_primary, image_wrist = obs["image_primary"], obs["image_wrist"]
+        proprio = obs["proprio"]
+        return {
+            f"{obs_type}/image_primary": wandb.Image(image_primary[0]),
+            f"{obs_type}/image_wrist": wandb.Image(image_wrist[0]),
+            f"{obs_type}/proprio": wandb.Table(columns=[f"{obs_type}_proprio_{i}" for i in range(len(proprio[0]))], 
+            data=[proprio[0].tolist()]),
+        }
+    dict_to_log = {}
+    dict_to_log.update(log_obs(batch["observations"], "observations"))
+    dict_to_log.update(log_obs(batch["next_observations"], "next_observations"))
+    
+    rewards = batch["rewards"]
+    actions = batch["actions"]
+    masks = batch["masks"]
+    dict_to_log.update({
+        "reward": float(rewards[0]),
+        "action": wandb.Table(columns=[f"action_{i}" for i in range(len(actions[0]))], data=[actions[0].tolist()]),
+        "mask": float(1 if masks[0] else 0),
+    })
+    return dict_to_log
+
+
 
 def build_network_tree(params, name="Network Parameters"):
     """Build a rich Tree visualization with colors"""

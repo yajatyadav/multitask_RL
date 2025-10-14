@@ -27,6 +27,7 @@ class RLDSDataset(IterableDataset):
         mixture_spec: List[Tuple[str, float]],
         action_key_list: List[str],
         binarize_gripper: bool,
+        balance_datasets: bool,
         batch_size: int,
         num_workers: int,
         action_horizon: int,
@@ -43,32 +44,22 @@ class RLDSDataset(IterableDataset):
         self.batch_size = batch_size
         self.num_workers = num_workers
 
+        action_proprio_normalization_type = None if skip_norm_stats else NormalizationType.NORMAL
+
 
 
         # fmt: off
-        if skip_norm_stats:
-            per_dataset_kwargs, weights = get_oxe_dataset_kwargs_and_weights(
-                self.data_root_dir,
-                mixture_spec,
-                action_key_list=action_key_list,
-                binarize_gripper=binarize_gripper,
-                load_camera_views=("primary", "secondary", "wrist"),
-                load_depth=False,
-                load_proprio=True,
-                load_language=True,
-            )
-        else:
-            per_dataset_kwargs, weights = get_oxe_dataset_kwargs_and_weights(
-                self.data_root_dir,
-                mixture_spec,
-                action_key_list=action_key_list,
-                binarize_gripper=binarize_gripper,
-                load_camera_views=("primary", "secondary", "wrist"),
-                load_depth=False,
-                load_proprio=True,
-                load_language=True,
-                action_proprio_normalization_type=NormalizationType.NORMAL,
-            )
+        per_dataset_kwargs, weights = get_oxe_dataset_kwargs_and_weights(
+            self.data_root_dir,
+            mixture_spec,
+            action_key_list=action_key_list,
+            binarize_gripper=binarize_gripper,
+            load_camera_views=("primary", "secondary", "wrist"),
+            load_depth=False,
+            load_proprio=True,
+            load_language=True,
+            action_proprio_normalization_type=action_proprio_normalization_type,
+        )
 
         
         ## TODO(YY): MAKE sure action chunking is correct
@@ -86,7 +77,7 @@ class RLDSDataset(IterableDataset):
             dataset_kwargs_list=per_dataset_kwargs,
             shuffle_buffer_size=shuffle_buffer_size,
             sample_weights=weights,
-            balance_weights=False,
+            balance_weights=balance_datasets,
             # traj_transform_threads= self.num_workers * len(mixture_spec),
             # traj_read_threads= WORKER_SCALE_FACTOR * len(mixture_spec),
             traj_transform_threads=len(mixture_spec),

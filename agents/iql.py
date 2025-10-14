@@ -229,7 +229,10 @@ class IQLAgent(flax.struct.PyTreeNode):
         network_args = {k: v[1] for k, v in network_info.items()}
 
         network_def = ModuleDict(networks)
-        network_tx = optax.adam(learning_rate=config['lr']) # TODO(YY): support other optimizers / LR Schedules?
+
+        if config['optimizer'] is None:
+            config['optimizer'] = optax.adam
+        network_tx = config['optimizer'](learning_rate=config['lr']) # TODO(YY): support other optimizers / LR Schedules?
         network_params = network_def.init(init_rng, **network_args)['params']
         network = TrainState.create(network_def, network_params, tx=network_tx)
 
@@ -243,6 +246,7 @@ def get_config():
     config = ml_collections.ConfigDict(
         dict(
             agent_name='iql',  # Agent name.
+            optimizer=None,
             lr=3e-4,  # Learning rate.
             batch_size=256,  # Batch size.
             actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.

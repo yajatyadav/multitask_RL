@@ -14,7 +14,6 @@
 # #         num_workers=0,  # Important =>> Set to 0 if using RLDS; TFDS rolls its own parallelism!
 # #     )
 
-# # import pdb; pdb.set_trace()
 
 # from openpi.rlds_dataloader.dataloader import create_data_loader, create_dataset, transform_dataset
 # from openpi.training.config import get_config
@@ -73,18 +72,18 @@
  
 # for sample in dataset:
 #     print(sample)
-#     # import pdb; pdb.set_trace()
+#
 # #     save_debug_image(sample["observation"]["image_primary"].squeeze(0), 0)
 # #     save_debug_image(sample["observation"]["image_wrist"].squeeze(0), 1)
 
 # # for batch in dataloader:
-# #     import pdb; pdb.set_trace()
+#
 # #     obs, action = _model.Observation.from_dict(batch), batch["actions"]
 
 # # dataloader = create_data_loader(config, sharding=data_sharding, num_workers=config.num_workers)
 # # print
 # # for batch in dataloader:
-#     # import pdb; pdb.set_trace()
+
 
 
 

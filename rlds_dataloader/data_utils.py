@@ -58,9 +58,12 @@ class NormalizationType(str, Enum):
 
 
 # # ruff: noqa: B023
-def normalize_action_and_proprio(traj: Dict, metadata: Dict, normalization_type: NormalizationType):
+def normalize_action_and_proprio(traj: Dict, metadata: Dict, normalization_type: NormalizationType | None):
     """Normalizes the action and proprio fields of a trajectory using the given metadata."""
     keys_to_normalize = {"action": "action", "proprio": "observation/proprio"}
+
+    if normalization_type is None:
+        return traj
 
     if normalization_type == NormalizationType.NORMAL:
         for key, traj_key in keys_to_normalize.items():

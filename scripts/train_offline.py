@@ -1,3 +1,6 @@
+import tensorflow as tf
+tf.config.set_visible_devices([], "GPU")
+
 import os
 import json
 import random
@@ -5,6 +8,7 @@ import time
 from rich.console import Console
 
 import jax
+import optax
 import numpy as np
 import tqdm
 import wandb
@@ -16,51 +20,61 @@ from rlds_dataloader.dataloader import create_data_loader
 
 from agents import agents
 
+from utils.data_utils import ratios_to_odds_mixture
 from utils.flax_utils import restore_agent, save_agent
 from utils.logging import CsvLogger, get_exp_name, get_flag_dict, get_wandb_video, setup_wandb
 from utils.logging import build_network_tree
+from utils.logging import get_sample_input_output_log_to_wandb
+
+from evaluation.eval_libero import evaluate, Args
+
 
 FLAGS = flags.FLAGS
 
+# housekeeping flags
 flags.DEFINE_string('run_group', 'Debug', 'Run group.')
+flags.DEFINE_string('exp_name_prefix', '', 'Prefix for the experiment name in Wandb, this can be used to group experiments.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_string('save_dir', 'exp/', 'Save directory.')
 flags.DEFINE_string('restore_path', None, 'Restore path.')
 flags.DEFINE_integer('restore_epoch', None, 'Restore epoch.')
 
-flags.DEFINE_integer('offline_steps', 1000000, 'Number of offline steps.')
-flags.DEFINE_integer('log_interval', 5000, 'Logging interval.')
-flags.DEFINE_integer('eval_interval', 100000, 'Evaluation interval.')
+# training flags
+flags.DEFINE_integer('offline_steps', 100, 'Number of offline steps.')
+flags.DEFINE_integer('log_interval', 1, 'Logging interval.')
+flags.DEFINE_integer('eval_interval', 10, 'Evaluation interval.')
 flags.DEFINE_integer('save_interval', 1000000, 'Saving interval.')
+flags.DEFINE_integer('num_input_output_to_log', 2, 'Number of transitions to log to wand, to serve as sanity-check.')
 
-flags.DEFINE_integer('eval_episodes', 50, 'Number of evaluation episodes.')
+# eval flags
+flags.DEFINE_integer('eval_episodes', 20, 'Number of evaluation episodes.')
+flags.DEFINE_integer('num_steps_wait', 10, 'Number of steps to wait for objects to stabilize.')
 flags.DEFINE_integer('video_episodes', 0, 'Number of video episodes for each task.')
+flags.DEFINE_float('eval_temperature', 1.0, 'Temperature for the actor.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
-config_flags.DEFINE_config_file('agent', 'agents/iql.py', lock_config=False)
+# more eval flags - might have to refactor tihs
+flags.DEFINE_string('task_suite_name', 'libero_10', 'Task suite name.')
+flags.DEFINE_string('task_name', '', 'Task name.')
 
+# dataset flags
 flags.DEFINE_string('data_root_dir', None, 'Data root directory.')
 flags.DEFINE_string('train_dataset_mix', None, 'JSON string for the train dataset mix.')
 flags.DEFINE_string('val_dataset_mix', None, 'JSON string for the val dataset mix.')
-flags.DEFINE_integer('batch_size', 32, 'Batch size.')
+flags.DEFINE_boolean('balance_datasets', True, 'Whether to balance the datasets.') ## TODO(YY): a little messed up for the val split, but not really an issue- the balancing op is done using the sizes of the ENTIRE dataset,
+flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 flags.DEFINE_integer('num_workers', 16, 'Number of workers.')
 flags.DEFINE_boolean('do_image_aug', True, 'Whether to apply image augmentation.')
-flags.DEFINE_boolean('binarize_gripper', True, 'Whether to binarize the gripper.')
-
-# utility func b/c openvla dataloader wants one dataset in a mixture to be the "primary" one and have weight 1.0
-def ratios_to_odds_mixture(ratios):
-    keys = sorted(ratios.keys())
-    first_val = ratios[keys[0]]
-    new_dict = {keys[0]: 1.0}
-    for key in keys[1:]:
-        new_dict[key] = ratios[key] / first_val
-    return new_dict
+flags.DEFINE_boolean('binarize_gripper', True, 'Whether to binarize the gripper into [-1, +1].')
 
 
+# agent configuration
+config_flags.DEFINE_config_file('agent', 'agents/iql.py', lock_config=False) # TODO(YY): fix this later, otherwise json.dump doesn't reflect our new agent_config
 agent_config = ml_collections.ConfigDict(
     dict(
         agent_name='iql',  # Agent name.
-        lr=3e-4,  # Learning rate.
+        optimizer=optax.adam,
+        lr=3e-4,
         batch_size=256,  # Batch size.
         actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.
         value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
@@ -72,69 +86,70 @@ agent_config = ml_collections.ConfigDict(
         actor_loss='awr',  # Actor loss type ('awr' or 'ddpgbc').
         alpha=10.0,  # Temperature in AWR or BC coefficient in DDPG+BC.
         const_std=True,  # Whether to use constant standard deviation for the actor.
-        encoder='combined_encoder_debug',  # Visual encoder name (None, 'impala_small', etc.).
+        encoder='combined_encoder_large',  # Visual encoder name (None, 'impala_small', etc.).
     )
     )
 
 
 def main(_):
-    exp_name = get_exp_name(FLAGS.seed)
+    # setup wandb
+    exp_name = FLAGS.exp_name_prefix + get_exp_name(FLAGS.seed)
     setup_wandb(project='multitask_RL', group=FLAGS.run_group, name=exp_name)
 
+    # setup save dir
     FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, exp_name)
     os.makedirs(FLAGS.save_dir, exist_ok=True)
     flag_dict = get_flag_dict()
     with open(os.path.join(FLAGS.save_dir, 'flags.json'), 'w') as f:
         json.dump(flag_dict, f)
 
+    # setup randomization
     random.seed(FLAGS.seed)
     np.random.seed(FLAGS.seed)
 
-    ## setup datasets
+    ## setup dataloaders
     train_dataset_mix = ratios_to_odds_mixture(json.loads(FLAGS.train_dataset_mix))
     val_dataset_mix = ratios_to_odds_mixture(json.loads(FLAGS.val_dataset_mix))
-    print(f"train_dataset_mix: {train_dataset_mix}")
-    print(f"val_dataset_mix: {val_dataset_mix}")
     train_dataloader_config = {
         'data_root_dir': FLAGS.data_root_dir,
         'dataset_mix': train_dataset_mix,
+        'balance_datasets': FLAGS.balance_datasets,
         'batch_size': FLAGS.batch_size,
         'num_workers': FLAGS.num_workers,
         'seed': FLAGS.seed,
         'do_image_aug': FLAGS.do_image_aug,
-        'binarize_gripper': FLAGS.binarize_gripper,
+        'binarize_gripper': True,
         'train': True
     }
     val_dataloader_config = {
         'data_root_dir': FLAGS.data_root_dir,
         'dataset_mix': val_dataset_mix,
+        'balance_datasets': FLAGS.balance_datasets,
         'batch_size': FLAGS.batch_size,
         'num_workers': FLAGS.num_workers,
         'seed': FLAGS.seed,
-        'do_image_aug': FLAGS.do_image_aug,
-        'binarize_gripper': FLAGS.binarize_gripper,
+        'do_image_aug': False,
+        'binarize_gripper': True,
         'train': False
-    }
-    
-
-    train_dataloader = create_data_loader(train_dataloader_config)
-    val_dataloader = create_data_loader(val_dataloader_config)
+    } 
+    train_dataloader = create_data_loader(train_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+    val_dataloader = create_data_loader(val_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
     example_batch = train_dataloader.example_batch()
 
+    # setup agent
     agent_class = agents[agent_config['agent_name']]
     agent = agent_class.create(
         FLAGS.seed,
         example_batch['observations'],
         example_batch['actions'],
         agent_config,
-    )
-    
+    )    
 
-    # restore path
+    # restore agent
     if FLAGS.restore_path is not None:
         agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
 
-    # train agent
+    # setup loggers
     train_logger = CsvLogger(os.path.join(FLAGS.save_dir, 'train.csv'))
     eval_logger = CsvLogger(os.path.join(FLAGS.save_dir, 'eval.csv'))
     first_time = time.time()
@@ -146,16 +161,18 @@ def main(_):
     console = Console()
     console.print(build_network_tree(network_params))
 
-    step = 0
-    done = True
-
+    # training loop
     expl_metrics = dict()
     data_iter = iter(train_dataloader)
     val_data_iter = iter(val_dataloader)
-
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1), smoothing=0.1, dynamic_ncols=True):
         batch = next(data_iter)
         agent, info = agent.update(batch)
+
+        # log few inputs to wandb: logs 0th transition in batch
+        if i < FLAGS.num_input_output_to_log:
+            dict_to_log = get_sample_input_output_log_to_wandb(batch)
+            wandb.log(dict_to_log, step=i)
 
         # log metrics
         if i % FLAGS.log_interval == 0:
@@ -173,17 +190,33 @@ def main(_):
 
         # evaluate agent
         if FLAGS.eval_interval != 0 and (i == 1 or i % FLAGS.eval_interval == 0):
-             # TODO evaluation not supported rught now
-            pass
-            # renders = []
-            # eval_metrics = {}
-            # for k, v in eval_info.items():
-            #     eval_metrics[f'evaluation/{k}'] = v
-            # if FLAGS.video_episodes > 0:
-            #     video = get_wandb_video(renders=renders)
-            #     eval_metrics['video'] = video
-            # wandb.log(eval_metrics, step=i)
-            # eval_logger.log(eval_metrics, step=i)
+            renders = []
+            wrist_renders = []
+            eval_metrics = {}
+            libero_eval_args = Args(
+                seed=FLAGS.seed,
+                num_eval_episodes=FLAGS.eval_episodes,
+                num_steps_wait=FLAGS.num_steps_wait,
+                video_frame_skip=FLAGS.video_frame_skip,
+                eval_temperature=FLAGS.eval_temperature,
+                task_suite_name=FLAGS.task_suite_name,
+                task_name=FLAGS.task_name,
+            )
+
+            eval_info, trajs, cur_renders, cur_wrist_renders = evaluate(
+                agent=agent,
+                args=libero_eval_args,
+            )
+            renders.extend(cur_renders)
+            wrist_renders.extend(cur_wrist_renders)
+            for k, v in eval_info.items():
+                eval_metrics[f'evaluation/{k}'] = v            
+            video = get_wandb_video(renders=renders)
+            # wrist_video = get_wandb_video(renders=wrist_renders)
+            eval_metrics['video'] = video
+            # eval_metrics['wrist_video'] = wrist_video
+            wandb.log(eval_metrics, step=i)
+            eval_logger.log(eval_metrics, step=i)
 
         # save agent
         if i % FLAGS.save_interval == 0:

@@ -5,17 +5,10 @@ from torch.utils.data import IterableDataset
 import tensorflow as tf
 
 from rlds_dataloader.dataset import RLDSDataset
+from utils.data_utils import normalize_action, normalize_proprio, normalize_image
 
-import tensorflow_hub
-import tensorflow_text
 
-class MuseEmbedding:
-    def __init__(self):
-        self.muse_model = tensorflow_hub.load("https://tfhub.dev/google/universal-sentence-encoder-multilingual/3")
-    
-    def encode(self, strings):
-        embeddings = self.muse_model(strings).numpy()
-        return embeddings
+
 
 class RLDSDataLoader():
     def __init__(self, config: dict, dataset: IterableDataset):
@@ -29,7 +22,8 @@ class RLDSDataLoader():
                 collate_fn=_collate_fn,
                 generator=generator,
             )
-            self.text_encoder = MuseEmbedding()
+            from utils.data_utils import MuseEmbedding
+            self.text_encoder = MuseEmbedding
     
     ## fix up the batch in a fromat downstream agents can more easily use
     def postprocess_batch(self, batch):
@@ -47,8 +41,20 @@ class RLDSDataLoader():
         observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
         next_observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
 
+        # let's explicitly convert obs image to uint8, and also proprio normalize
+        observation['image_primary'] = np.apply_along_axis(normalize_image, axis=1, arr=observation['image_primary'])
+        observation['image_wrist'] = np.apply_along_axis(normalize_image, axis=1, arr=observation['image_wrist'])
+        observation['proprio'] = np.apply_along_axis(normalize_proprio, axis=1, arr=observation['proprio'])
+        
+        next_observation['image_primary'] = np.apply_along_axis(normalize_image, axis=1, arr=next_observation['image_primary'])
+        next_observation['image_wrist'] = np.apply_along_axis(normalize_image, axis=1, arr=next_observation['image_wrist'])
+        next_observation['proprio'] = np.apply_along_axis(normalize_proprio, axis=1, arr=next_observation['proprio'])
+
         # squeeze out the window dimension from actions
         action = np.squeeze(action, axis=1)
+        # normalize each action in batch
+        action = np.apply_along_axis(normalize_action, axis=1, arr=action)
+        
 
         # make masks using is_terminals: 0 if terminal, 1 if not
         masks = np.where(is_terminal, 0, 1)
@@ -65,7 +71,6 @@ class RLDSDataLoader():
         "next_observations": next_observation,
         "masks": masks,
         }
-
         return batch
 
     def example_batch(self):
@@ -99,6 +104,7 @@ def create_data_loader(
         mixture_spec = mixture_spec,
         action_key_list = action_key_list,
         binarize_gripper=config["binarize_gripper"],
+        balance_datasets=config["balance_datasets"],
         batch_size = config["batch_size"] // jax.process_count(),
         num_workers = config["num_workers"],
         action_horizon = 1,

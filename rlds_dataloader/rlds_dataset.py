@@ -32,7 +32,7 @@ import rlds_dataloader.obs_transforms as obs_transforms
 
 
 # Configure Tensorflow with *no GPU devices* (to prevent clobber with PyTorch)
-tf.config.set_visible_devices([], "GPU")
+# tf.config.set_visible_devices([], "GPU")
 DATASETS_TO_FILTER_FAILURES = ["droid_alt", "droid"]
 
 # ruff: noqa: B006
@@ -246,7 +246,8 @@ def make_dataset_from_rlds(
     
     dataset = dataset.traj_map(restructure, num_parallel_calls)
     
-    print(f" Performing action-proprio normalization! ")
+    if action_proprio_normalization_type is not None:
+        print(f" Performing action-proprio normalization inside the OpenVLA dataloader! ")
     dataset = dataset.traj_map(
         partial(
             normalize_action_and_proprio,
@@ -535,6 +536,7 @@ def make_interleaved_dataset(
 
     # Balance and Normalize Weights
     if balance_weights:
+        print("😍😍 Balancing datasets...")
         sample_weights = np.array(sample_weights) * np.array(dataset_sizes)
     sample_weights = np.array(sample_weights) / np.sum(sample_weights)
     pprint_data_mixture(dataset_kwargs_list, sample_weights)

@@ -9,21 +9,37 @@ description = "Repository for multitask_RL implementations and experiments"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
+
 dependencies = [
+    # LIBERO requirements (adjusted for Python 3.11 compatibility)
+    "hydra-core>=1.2.0",
+    "numpy",  # Your other deps might need newer numpy
+    "wandb",
+    "easydict==1.9",
+    "opencv-python>=4.6.0.66",
+    "einops>=0.4.1",
+    "thop>=0.1.1",
+    "robosuite==1.4.0",  # Pin this - LIBERO is sensitive to robosuite version
+    "bddl==1.0.1",  # Pin this - LIBERO-specific
+    "future>=0.18.2",
+    "matplotlib",
+    "cloudpickle>=2.1.0",
+    "gym",
+    
+    # Your existing dependencies
     "torch",
     "tensorflow",
     "tensorflow-datasets",
-    "tensorflow-probability[tf]",
+    "tensorflow-probability",
     "tensorflow-hub",
     "tensorflow-text",
     "dlimp",
+    "libero",
     "jax[cuda12]",
     "flax",
     "distrax",
     "ml_collections",
-    "matplotlib",
     "moviepy",
-    "wandb",
     "jupyter",
     "ipykernel",
     "ipywidgets",
@@ -35,6 +51,7 @@ Repository = "https://github.com/yajatyadav/multitask_RL"
 
 [tool.uv.sources]
 dlimp = { git = "https://github.com/yajatyadav/dlimp", branch = "main" }
+libero = {path = "libero", editable = true}
 
 [tool.setuptools.packages.find]
 where = ["."]
