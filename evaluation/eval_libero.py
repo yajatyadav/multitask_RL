@@ -169,10 +169,11 @@ def evaluate(agent, args: Args):
     task_embedding = TEXT_ENCODER.encode(task_description)
     trajs = []
     stats = defaultdict(list)
-    renders= []   
+    renders = []   
     wrist_renders = []
 
     # eval loop
+    num_success_episodes = 0
     for episode_idx in tqdm.tqdm(range(args.num_eval_episodes)):
         traj = defaultdict(list)
 
@@ -192,8 +193,7 @@ def evaluate(agent, args: Args):
             if t < args.num_steps_wait:
                 obs, reward, done, info = env.step(LIBERO_DUMMY_ACTION)
                 t += 1
-                continue
-            
+                continue            
 
             ## TODO(YY): format obs output by libero into obs expected by agent; especially NORMALIZATION !! 
             obs = format_libero_obs_for_agent(obs, task_embedding)
@@ -203,7 +203,7 @@ def evaluate(agent, args: Args):
             ## TODO(YY): format action output by agent into action expected by libero; especially UN-NORMALIZATION !! 
 
             next_obs, reward, done, info = env.step(action)
-            t += 1
+            import pdb; pdb.set_trace()
 
             if t % args.video_frame_skip == 0 or done:
                 render.append(unnormalize_image(obs["image_primary"]))
@@ -219,6 +219,11 @@ def evaluate(agent, args: Args):
             )
             add_to(traj, transition)
             obs = next_obs
+
+            if done:
+                num_success_episodes += 1
+                break
+            t += 1
 
         add_to(stats, flatten(info))
         trajs.append(traj)

@@ -60,7 +60,8 @@ flags.DEFINE_string('task_name', '', 'Task name.')
 # dataset flags
 flags.DEFINE_string('data_root_dir', None, 'Data root directory.')
 flags.DEFINE_string('train_dataset_mix', None, 'JSON string for the train dataset mix.')
-flags.DEFINE_string('val_dataset_mix', None, 'JSON string for the val dataset mix.')
+flags.DEFINE_boolean('do_validation', True, 'Whether to do validation.')
+flags.DEFINE_string('val_dataset_mix', None, 'JSON string for the val dataset mix. Must be provided if do_validation is True.')
 flags.DEFINE_boolean('balance_datasets', True, 'Whether to balance the datasets.') ## TODO(YY): a little messed up for the val split, but not really an issue- the balancing op is done using the sizes of the ENTIRE dataset,
 flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 flags.DEFINE_integer('num_workers', 16, 'Number of workers.')
@@ -109,7 +110,6 @@ def main(_):
 
     ## setup dataloaders
     train_dataset_mix = ratios_to_odds_mixture(json.loads(FLAGS.train_dataset_mix))
-    val_dataset_mix = ratios_to_odds_mixture(json.loads(FLAGS.val_dataset_mix))
     train_dataloader_config = {
         'data_root_dir': FLAGS.data_root_dir,
         'dataset_mix': train_dataset_mix,
@@ -121,19 +121,25 @@ def main(_):
         'binarize_gripper': True,
         'train': True
     }
-    val_dataloader_config = {
-        'data_root_dir': FLAGS.data_root_dir,
-        'dataset_mix': val_dataset_mix,
-        'balance_datasets': FLAGS.balance_datasets,
-        'batch_size': FLAGS.batch_size,
-        'num_workers': FLAGS.num_workers,
-        'seed': FLAGS.seed,
-        'do_image_aug': False,
-        'binarize_gripper': True,
-        'train': False
-    } 
     train_dataloader = create_data_loader(train_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
-    val_dataloader = create_data_loader(val_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+
+    if FLAGS.do_validation:
+        val_dataset_mix = ratios_to_odds_mixture(json.loads(FLAGS.val_dataset_mix))
+        val_dataloader_config = {
+            'data_root_dir': FLAGS.data_root_dir,
+            'dataset_mix': val_dataset_mix,
+            'balance_datasets': FLAGS.balance_datasets,
+            'batch_size': FLAGS.batch_size,
+            'num_workers': FLAGS.num_workers,
+            'seed': FLAGS.seed,
+            'do_image_aug': False,
+            'binarize_gripper': True,
+            'train': False
+        } 
+        val_dataloader = create_data_loader(val_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+    else:
+        val_dataloader = None
+    
     example_batch = train_dataloader.example_batch()
 
     # setup agent
@@ -212,8 +218,8 @@ def main(_):
             for k, v in eval_info.items():
                 eval_metrics[f'evaluation/{k}'] = v            
             video = get_wandb_video(renders=renders)
-            # wrist_video = get_wandb_video(renders=wrist_renders)
             eval_metrics['video'] = video
+            # wrist_video = get_wandb_video(renders=wrist_renders)
             # eval_metrics['wrist_video'] = wrist_video
             wandb.log(eval_metrics, step=i)
             eval_logger.log(eval_metrics, step=i)

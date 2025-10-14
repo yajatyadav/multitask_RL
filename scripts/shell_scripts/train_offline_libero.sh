@@ -22,7 +22,7 @@ uv run scripts/train_offline.py \
 \
 --data_root_dir=/raid/users/yajatyadav/tensorflow_datasets/ \
 --train_dataset_mix='{"libero_90_put_the_black_bowl_on_the_plate": 1.0}' \
---val_dataset_mix='{"libero_90_put_the_black_bowl_on_the_plate": 1.0}' \
+--do_validation=False \
 --balance_datasets=True \
 \
 --batch_size=256 \
