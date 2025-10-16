@@ -13,7 +13,7 @@ Note:
 tf.config.set_visible_devices([], "GPU"), so that the dataloader doesn't take GPU mem
 
 
-When the LIBERO submodule github gets updated, run git submodule update --remote --merge, in order to pull in new changes!
+When the LIBERO submodule github gets updated, first make sure that local libero's origin points at github.com/yajatyadav/LIBERO, then run git submodule update --remote --merge, in order to pull in new changes!
 
 Stuff that is KILLING the dataloading speed:
 1. image augmentation stack

@@ -77,7 +77,7 @@ class MuseEmbedding:
     def encode(strings):
         return MUSE_MODEL(strings).numpy()
 
-norm_stats_root_dir = '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/dataset_stats'
+norm_stats_root_dir = os.path.join(os.getcwd(), 'dataset_stats')
 ALL_NORM_STATS = {}
 for dataset_name in os.listdir(norm_stats_root_dir):
     norm_stats_folder = os.path.join(norm_stats_root_dir, dataset_name)

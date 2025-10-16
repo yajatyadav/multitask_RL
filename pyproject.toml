@@ -7,13 +7,13 @@ name = "multitask_RL"
 version = "0.1.0"
 description = "Repository for multitask_RL implementations and experiments"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 license = { file = "LICENSE" }
 
 dependencies = [
     # LIBERO requirements (adjusted for Python 3.11 compatibility)
     "hydra-core>=1.2.0",
-    "numpy",  # Your other deps might need newer numpy
+    "numpy>=1.26.4",
     "wandb",
     "easydict==1.9",
     "opencv-python>=4.6.0.66",
@@ -26,18 +26,29 @@ dependencies = [
     "cloudpickle>=2.1.0",
     "gymnasium",
     
-    # Your existing dependencies
-    "torch",
+    # PyTorch - will be installed from CUDA wheel
+    "torch>=2.5.1",
+    "torchvision>=0.21.0",
+    
+    # TensorFlow ecosystem
     "tensorflow",
     "tensorflow-datasets",
     "tensorflow-probability",
     "tensorflow-hub",
     "tensorflow-text",
+    
+    # JAX ecosystem - use newer versions like the working project
+    "jax[cuda12]==0.5.0",
+    "flax==0.10.2",
+    "optax>=0.2.0",
+    "distrax>=0.1.5",
+    "orbax-checkpoint>=0.11.1",
+    
+    # Your custom packages
     "dlimp",
     "libero",
-    "jax[cuda12]",
-    "flax",
-    "distrax",
+    
+    # Other dependencies
     "ml_collections",
     "moviepy",
     "jupyter",
@@ -56,3 +67,6 @@ libero = {path = "libero", editable = true}
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["cache"]
+
+[tool.uv.pip]
+extra-index-url = ["https://download.pytorch.org/whl/cu121"]

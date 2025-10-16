@@ -1,6 +1,6 @@
 import os
 import sys
-repo_root_dir = os.getenv("MULTITASK_RL_REPO_ROOT_DIR", "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL")
+repo_root_dir = os.getenv("MULTITASK_RL_REPO_ROOT_DIR", os.getcwd())
 sys.path.insert(0, os.path.join(repo_root_dir, "libero"))
 
 import logging
