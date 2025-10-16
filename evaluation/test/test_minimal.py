@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(repo_root_dir, "libero"))
 from libero.libero import benchmark, get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 
-
+import tqdm
 
 benchmark_dict = benchmark.get_benchmark_dict()
 task_suite_name = "libero_10" # can also choose libero_spatial, libero_object, etc.
@@ -37,6 +37,6 @@ init_state_id = 0
 env.set_init_state(init_states[init_state_id])
 
 dummy_action = [0.] * 7
-for step in range(10):
+for step in tqdm.tqdm(range(900)):
     obs, reward, done, info = env.step(dummy_action)
 env.close()

@@ -67,7 +67,6 @@ class IQLAgent(flax.struct.PyTreeNode):
             exp_a = jnp.minimum(exp_a, 100.0)
 
             dist = self.network.select('actor')(batch['observations'], params=grad_params)
-            base_dist = dist.distribution if isinstance(dist, TransformedWithMode) else dist
             log_prob = dist.log_prob(batch['actions'])
 
             actor_loss = -(exp_a * log_prob).mean()
@@ -77,7 +76,7 @@ class IQLAgent(flax.struct.PyTreeNode):
                 'adv': adv.mean(),
                 'bc_log_prob': log_prob.mean(),
                 'mse': jnp.mean((dist.mode() - batch['actions']) ** 2),
-                'std': jnp.mean(base_dist.scale_diag),
+                'std': jnp.mean((dist.distribution if isinstance(dist, TransformedWithMode) else dist).scale_diag), # scuffed way of acceessing raw field...
             }
 
             return actor_loss, actor_info
@@ -215,8 +214,8 @@ class IQLAgent(flax.struct.PyTreeNode):
             hidden_dims=config['actor_hidden_dims'],
             action_dim=action_dim,
             layer_norm=config['actor_layer_norm'],
-            tanh_squash=True,
             state_dependent_std=False,
+            tanh_squash=True,
             const_std=config['const_std'],
             encoder=encoders.get('actor'),
         )
@@ -231,8 +230,7 @@ class IQLAgent(flax.struct.PyTreeNode):
         network_args = {k: v[1] for k, v in network_info.items()}
 
         network_def = ModuleDict(networks)
-
-        network_tx = optax.adam(learning_rate=config['lr']) # TODO(YY): support other optimizers / LR Schedules?
+        network_tx = optax.adam(learning_rate=config['lr'])
         network_params = network_def.init(init_rng, **network_args)['params']
         network = TrainState.create(network_def, network_params, tx=network_tx)
 

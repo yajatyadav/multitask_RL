@@ -7,8 +7,6 @@ import random
 import time
 from rich.console import Console
 
-import jax
-import optax
 import numpy as np
 import tqdm
 import wandb
@@ -196,7 +194,7 @@ def main(_):
             train_logger.log(train_metrics, step=i)
 
         # evaluate agent
-        if FLAGS.eval_interval != 0 and (i == 0 or i % FLAGS.eval_interval == 0):
+        if FLAGS.eval_interval != 0 and (i == 1 or i % FLAGS.eval_interval == 0):
             renders = []
             wrist_renders = []
             eval_metrics = {}
@@ -208,6 +206,8 @@ def main(_):
                 eval_temperature=FLAGS.eval_temperature,
                 task_suite_name=FLAGS.task_suite_name,
                 task_name=FLAGS.task_name,
+                # dataset_name=sorted(train_dataset_mix.keys())[0], # take the first key as the dataset name, used for normalizing eval-time observations
+                dataset_name="old_libero_norm_stats",
             )
 
             eval_info, trajs, cur_renders, cur_wrist_renders = evaluate(
@@ -236,9 +236,3 @@ def main(_):
 
 if __name__ == '__main__':
     app.run(main)
-
-
-    
-    
-
-

@@ -1,9 +1,11 @@
+# set tensorflow to cpu
+import tensorflow as tf
+tf.config.set_visible_devices([], "GPU")
+
 from agents.iql import IQLAgent
 from rlds_dataloader.dataloader import create_data_loader
 import ml_collections
-import optax
 import tqdm
-import numpy as np
 
 if __name__ == "__main__":
 
@@ -57,10 +59,11 @@ if __name__ == "__main__":
     for batch in tqdm.tqdm(data_iter):
         actor_dist = actor(batch['observations'], params=agent.network.params)
         log_prob = actor_dist.log_prob(batch['actions'])
+        print(log_prob)
         # find indices where log_prob is nan
-        nan_indices = np.where(np.isnan(log_prob))
-        # print each action vector that caused a nan log_prob
-        for index in nan_indices:
-            print(batch['actions'][index])
-        if not nan_indices:
-            print("No nan log_probs found in this batch!")
+        # nan_indices = np.where(np.isnan(log_prob))
+        # # print each action vector that caused a nan log_prob
+        # for index in nan_indices:
+        #     print(batch['actions'][index])
+        # if not nan_indices:
+        #     print("No nan log_probs found in this batch!")

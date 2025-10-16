@@ -16,7 +16,7 @@ from libero.libero import benchmark
 from libero.libero import get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 from utils.data_utils import MuseEmbedding
-from utils.data_utils import unnormalize_action, normalize_proprio, normalize_image, unnormalize_image
+from utils.data_utils import normalize_libero_eval_obs_for_agent, unnormalize_action_mean_std, unnormalize_image, unnormalize_action_min_max
 
 from utils.data_utils import LIBERO_ENV_RESOLUTION
 LIBERO_DUMMY_ACTION = [0.0] * 6 + [-1.0]
@@ -31,6 +31,7 @@ class Args:
     eval_temperature: float = 1.0
     task_suite_name: str = "libero_10"
     task_name: str = ""
+    dataset_name: str = "" # used to fetch norm stats
 
 def supply_rng(f, rng=jax.random.PRNGKey(0)):
     """Helper function to split the random number generator key before each call to the function."""
@@ -109,35 +110,33 @@ def setup_eval_env(args: Args):
     return env, max_steps, task_description, initial_states
 
 
-def format_libero_obs_for_agent(obs, task_embedding, sim_state):
+def format_libero_obs_for_agent(obs, task_embedding, sim_state, dataset_name):
     
     # construct and normalize proprio
     proprio = np.concatenate((obs["robot0_eef_pos"],
                               _quat2axisangle(obs["robot0_eef_quat"]),
                               obs["robot0_gripper_qpos"],
                             ), dtype=np.float32)
-    proprio = normalize_proprio(proprio)
 
     # flip image horizontally and normalize into [-1, 1]
     image_primary = np.array(obs["agentview_image"][::-1, ::])
-    image_wrist = np.array(obs["robot0_eye_in_hand_image"][::-1, ::])    
-    image_primary = normalize_image(image_primary)
-    image_wrist = normalize_image(image_wrist)
-    
-    
-    obs = {
-        'task_embedding': task_embedding,
-        'proprio': proprio[np.newaxis, :], # reshaping to (1, 8) isntead of (8,)
-        'image_primary': image_primary,
-        'image_wrist': image_wrist,
-        'sim_state': sim_state[np.newaxis, :], # reshaping to (1, 51) isntead of (51,)
+    image_wrist = np.array(obs["robot0_eye_in_hand_image"][::-1, ::])
+
+    sim_state = np.array(sim_state, dtype=np.float32)
+
+    obs_to_normalize = {
+            'image_primary': image_primary,
+            'image_wrist': image_wrist,
+            'proprio': proprio[np.newaxis, :], # reshaping to (1, 8) isntead of (8,)
+            'sim_state': sim_state[np.newaxis, :], # reshaping to (1, 51) isntead of (51,)
     }
+    obs = normalize_libero_eval_obs_for_agent(obs_to_normalize, dataset_name=dataset_name)
     return obs
 
-def format_agent_action_for_libero(action, is_gripper_closed, num_consecutive_gripper_change_actions, STICKY_GRIPPER_NUM_STEPS=1):
+def format_agent_action_for_libero(action, dataset_name, is_gripper_closed, num_consecutive_gripper_change_actions, STICKY_GRIPPER_NUM_STEPS=1):
     # first, unnormalize + clip the non-gripper actions
-    action = unnormalize_action(np.array(action)).flatten() # flatten to remove batch dimension
-    action = np.clip(action, -1, 1)
+    action = unnormalize_action_min_max(np.array(action, dtype=np.float32), dataset_name=dataset_name).flatten() # flatten to remove batch dimension
+    action = np.clip(action, -1, 1) # MUST have this - without it, env.step() can eventually go out of bounds and crash mujoco
 
     # sticky gripper logic: set gripper to -1/1 based on consecutive gripper change requests
     if (action[-1] > 0) != is_gripper_closed:
@@ -167,7 +166,7 @@ def evaluate(agent, args: Args):
 
     # eval loop
     num_success_episodes = 0
-    for episode_idx in tqdm.tqdm(range(args.num_eval_episodes), desc=f"🤪🤪🤪  Evaulating episodes on task: {task_description}, num_success_episodes: {num_success_episodes}"):
+    for episode_idx in tqdm.tqdm(range(args.num_eval_episodes), desc=f"🤪🤪🤪  Evaulating episodes on task: {task_description}, num_success_episodes: {num_success_episodes}", position=0, leave=True):
         traj = defaultdict(list)
 
         env.reset()    
@@ -187,29 +186,31 @@ def evaluate(agent, args: Args):
             sim_state = env.get_sim_state()
         
         # start the main eval loop per episode
-        for t in range(max_steps):
-            obs = format_libero_obs_for_agent(obs, task_embedding, sim_state)
-            action = actor_fn(observations=obs, temperature=args.eval_temperature)
-            action, is_gripper_closed, num_consecutive_gripper_change_actions = format_agent_action_for_libero(action, is_gripper_closed, num_consecutive_gripper_change_actions)
-
+        for t in tqdm.trange(max_steps, desc=f"Episode {episode_idx} Progress ", position=1, leave=False):            
+            # format input/output from actor
+            obs_for_actor = format_libero_obs_for_agent(obs, task_embedding, sim_state, args.dataset_name)
+            action = actor_fn(observations=obs_for_actor, temperature=args.eval_temperature)
+            action, is_gripper_closed, num_consecutive_gripper_change_actions = format_agent_action_for_libero(action, args.dataset_name, is_gripper_closed, num_consecutive_gripper_change_actions)
+            # take action in environment
             next_obs, reward, done, info = env.step(action)
             sim_state = env.get_sim_state()
             info['success'] = float(1 if done else 0)
 
             if t % args.video_frame_skip == 0 or done:
-                render.append(unnormalize_image(obs["image_primary"]))
-                wrist_render.append(unnormalize_image(obs["image_wrist"]))
+                # TODO(YY): when normalizing images is added, make sure to unnormalize them here!
+                render.append(obs["agentview_image"][::-1, ::])
+                wrist_render.append(obs["robot0_eye_in_hand_image"][::-1, ::])
 
-            transition = dict(
-                observation=obs,
-                next_observation=next_obs,
-                action=action,
-                reward=reward,
-                done=done,
-                info=info,
-            )
-            add_to(traj, transition)
-            obs = next_obs
+            # transition = dict(
+            #     observation=obs,
+            #     next_observation=next_obs,
+            #     action=action,
+            #     reward=reward,
+            #     done=done,
+            #     info=info,
+            # )
+            # add_to(traj, transition)
+            # obs = next_obs
 
             if done:
                 num_success_episodes += 1
@@ -220,7 +221,8 @@ def evaluate(agent, args: Args):
         renders.append(np.array(render))
         wrist_renders.append(np.array(wrist_render))
     
+    env.close()
     for k, v in stats.items():
-        stats[k] = np.mean(v)
+        stats[k] = np.mean(v)    
     
     return stats, trajs, renders, wrist_renders

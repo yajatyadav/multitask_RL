@@ -1,19 +1,22 @@
 export TF_CPP_MIN_LOG_LEVEL=3
-export CUDA_VISIBLE_DEVICES=5
+export CUDA_VISIBLE_DEVICES=4
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+export MUJOCO_GL=egl
+export PYOPENGL_PLATFORM=egl
+
 uv run scripts/train_offline.py \
 --run_group=Debug \
---exp_name_prefix='State_space_BC_ON_single_libero_task__value_actor_512__tanh_squashing__' \
+--exp_name_prefix='State_space_BC_ON_single_libero_task__value_actor_512_tanh_squashing__' \
 --seed=42 \
 --save_dir=exp/ \
 \
 --offline_steps=1000000 \
 --log_interval=20 \
---eval_interval=25000 \
+--eval_interval=10000 \
 --save_interval=1000000 \
 --num_input_output_to_log=3 \
 \
---eval_episodes=30 \
+--eval_episodes=20 \
 --num_steps_wait=10 \
 --video_frame_skip=3 \
 --eval_temperature=1.0 \
