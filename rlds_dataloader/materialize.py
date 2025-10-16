@@ -140,7 +140,6 @@ def rand_pick_language_instruction(lang1, lang2, lang3):
     """
     return random.choice([lang1, lang2, lang3])
 
-## TODO(YY): edit this DROID standardization function to set trajectory["language_instruction"] to randomly be one of the 3 language instructions
 def droid_finetuning_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     """
     DROID dataset transformation for actions expressed in *base* frame of the robot.
@@ -150,7 +149,7 @@ def droid_finetuning_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     trajectory["action"] = tf.concat(
         (
             joint_velocity,
-            gripper_position, ## TODO(YY)!!: not copying the OpenVLA code (1 - gripper_position), so that we remain consistent with the demo dataset.... but not sure if this is correct...
+            gripper_position,
         ),
         axis=-1,
     )

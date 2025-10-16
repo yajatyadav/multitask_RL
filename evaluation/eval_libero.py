@@ -201,16 +201,16 @@ def evaluate(agent, args: Args):
                 render.append(obs["agentview_image"][::-1, ::])
                 wrist_render.append(obs["robot0_eye_in_hand_image"][::-1, ::])
 
-            # transition = dict(
-            #     observation=obs,
-            #     next_observation=next_obs,
-            #     action=action,
-            #     reward=reward,
-            #     done=done,
-            #     info=info,
-            # )
-            # add_to(traj, transition)
-            # obs = next_obs
+            transition = dict(
+                observation=obs,
+                next_observation=next_obs,
+                action=action,
+                reward=reward,
+                done=done,
+                info=info,
+            )
+            add_to(traj, transition)
+            obs = next_obs
 
             if done:
                 num_success_episodes += 1

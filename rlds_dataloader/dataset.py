@@ -64,7 +64,7 @@ class RLDSDataset(IterableDataset):
         )
 
         
-        ## TODO(YY): MAKE sure action chunking is correct
+        
         rlds_config = dict(
             batch_size=self.batch_size,
             traj_transform_kwargs=dict(

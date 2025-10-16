@@ -50,7 +50,6 @@ flags.DEFINE_integer('num_steps_wait', 10, 'Number of steps to wait for objects 
 flags.DEFINE_integer('video_episodes', 0, 'Number of video episodes for each task.')
 flags.DEFINE_float('eval_temperature', 1.0, 'Temperature for the actor.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
-
 # more eval flags - might have to refactor tihs
 flags.DEFINE_string('task_suite_name', '', 'Task suite name.')
 flags.DEFINE_string('task_name', '', 'Task name.')
@@ -60,18 +59,25 @@ flags.DEFINE_string('data_root_dir', None, 'Data root directory.')
 flags.DEFINE_string('train_dataset_mix', None, 'JSON string for the train dataset mix.')
 flags.DEFINE_boolean('do_validation', True, 'Whether to do validation.')
 flags.DEFINE_string('val_dataset_mix', None, 'JSON string for the val dataset mix. Must be provided if do_validation is True.')
-flags.DEFINE_boolean('balance_datasets', True, 'Whether to balance the datasets.') ## TODO(YY): a little messed up for the val split, but not really an issue- the balancing op is done using the sizes of the ENTIRE dataset,
+flags.DEFINE_boolean('balance_datasets', True, 'Whether to balance the datasets.') ## TODO(YY): NOTE- balance_datasets uses the size of the 'all' split, so sampling_weights are slightly off between train and val split
 flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 flags.DEFINE_integer('num_workers', 16, 'Number of workers.')
 flags.DEFINE_boolean('do_image_aug', True, 'Whether to apply image augmentation.')
 flags.DEFINE_boolean('binarize_gripper', True, 'Whether to binarize the gripper into [-1, +1].')
 
+# agent config flags
+flags.DEFINE_boolean('tanh_squash', True, 'whether the actor squashes output actions using tanh')
+flags.DEFINE_boolean('state_dependent_std', True, 'whether the actor network also outputs multivariate gaussian STD per state')
+flags.DEFINE_boolean('const_std', True, 'whether we use const std of 1 for all actor output distributions. Importantly, if const_std=False, state_dependent_std, then we still learn a std shared among ALL states')
+flags.DEFINE_float('alpha', 10.0, 'the temperature param for AWR. alpha=0 means BC, and higher alpha leads us to more greedily picking higher-advantage actions')
+flags.DEFINE_float('lr', 3e-4, 'constant learning rate that Adam uses for all networks')
+flags.DEFINE_string('encoder', '', 'must specify what encoder- controls if we are using simulator state, image + proprio, or something else')
 
 # agent configuration
 agent_config = ml_collections.ConfigDict(
     dict(
         agent_name='iql',  # Agent name.
-        lr=3e-4,
+        # lr=3e-4, # to be filled in later
         actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.
         value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
         layer_norm=True,  # Whether to use layer normalization.
@@ -80,9 +86,9 @@ agent_config = ml_collections.ConfigDict(
         tau=0.005,  # Target network update rate.
         expectile=0.9,  # IQL expectile.
         actor_loss='awr',  # Actor loss type ('awr' or 'ddpgbc').
-        alpha=0.0,  # Temperature in AWR or BC coefficient in DDPG+BC.
-        const_std=True,  # Whether to use constant standard deviation for the actor.
-        encoder='state_space_encoder',  # Visual encoder name (None, 'impala_small', etc.).
+        # alpha=0.0,  # Temperature in AWR or BC coefficient in DDPG+BC. will be filled in main()
+        # const_std=True,  # Whether to use constant standard deviation for the actor. # to be filled in later
+        # encoder='state_space_encoder',  # Visual encoder name (None, 'impala_small', etc.).
     )
     )
 
@@ -98,7 +104,15 @@ def main(_):
     flag_dict = get_flag_dict()
     with open(os.path.join(FLAGS.save_dir, 'flags.json'), 'w') as f:
         json.dump(flag_dict, f)
-    # Save agent config
+    # load in extra agent config options from flag, then save
+    agent_config.update(
+        lr=FLAGS.lr,
+        alpha=FLAGS.alpha,
+        tanh_squash=FLAGS.tanh_squash,
+        const_std=FLAGS.const_std,
+        state_dependent_std=FLAGS.state_dependent_std,
+        encoder=FLAGS.encoder
+    )
     agent_config_dict = agent_config.to_dict()    
     with open(os.path.join(FLAGS.save_dir, 'agent_config.json'), 'w') as f:
         json.dump(agent_config_dict, f, indent=2)
@@ -206,8 +220,7 @@ def main(_):
                 eval_temperature=FLAGS.eval_temperature,
                 task_suite_name=FLAGS.task_suite_name,
                 task_name=FLAGS.task_name,
-                # dataset_name=sorted(train_dataset_mix.keys())[0], # take the first key as the dataset name, used for normalizing eval-time observations
-                dataset_name="old_libero_norm_stats",
+                dataset_name=sorted(train_dataset_mix.keys())[0], # take the first key as the dataset name, used for normalizing eval-time observations
             )
 
             eval_info, trajs, cur_renders, cur_wrist_renders = evaluate(

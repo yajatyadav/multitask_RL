@@ -214,8 +214,8 @@ class IQLAgent(flax.struct.PyTreeNode):
             hidden_dims=config['actor_hidden_dims'],
             action_dim=action_dim,
             layer_norm=config['actor_layer_norm'],
-            state_dependent_std=False,
-            tanh_squash=True,
+            state_dependent_std=config['state_dependent_std'],
+            tanh_squash=config['tanh_squash'],
             const_std=config['const_std'],
             encoder=encoders.get('actor'),
         )

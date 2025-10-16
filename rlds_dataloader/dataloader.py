@@ -27,7 +27,6 @@ class RLDSDataLoader():
        
 
         # let's add task under observation and next_observation to be used in FiLM modulation of visual observations
-        # TODO(YY): factor this into the TFDS pipeline once moving back to image/proprio as inputs...
         # observation['image_primary'] = normalize_image(observation['image_primary'])
         # observation['image_wrist'] = normalize_image(observation['image_wrist'])
         # observation['proprio'] = normalize_proprio(observation['proprio'])

@@ -100,7 +100,7 @@ ALL_NORM_STATS["old_libero_norm_stats"] = {
     },
 }
 
-# TODO(YY): commenting out image normalization for now- this is really killing the dataloader speed...
+# TODO(YY): commenting out image normalization for now- this is really killing the dataloader speed...maybe try to integrate into TFDS pipeline as a frame_transform?
 def normalize_libero_batch(batch, dataset_name: str):
     norm_stats = ALL_NORM_STATS[dataset_name]
 
