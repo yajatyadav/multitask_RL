@@ -18,11 +18,9 @@ from libero.libero.envs import OffScreenRenderEnv
 from utils.data_utils import MuseEmbedding
 from utils.data_utils import unnormalize_action, normalize_proprio, normalize_image, unnormalize_image
 
-
+from utils.data_utils import LIBERO_ENV_RESOLUTION
 LIBERO_DUMMY_ACTION = [0.0] * 6 + [-1.0]
-LIBERO_ENV_RESOLUTION = 128  # resolution used to render training data
 TEXT_ENCODER = MuseEmbedding
-
 
 @dataclass
 class Args:
@@ -33,9 +31,6 @@ class Args:
     eval_temperature: float = 1.0
     task_suite_name: str = "libero_10"
     task_name: str = ""
-
-
-
 
 def supply_rng(f, rng=jax.random.PRNGKey(0)):
     """Helper function to split the random number generator key before each call to the function."""
@@ -88,64 +83,63 @@ def setup_eval_env(args: Args):
     benchmark_dict = benchmark.get_benchmark_dict()
     task_suite = benchmark_dict[args.task_suite_name]()
     num_tasks_in_suite = task_suite.n_tasks
-    logging.info(f"Task suite: {args.task_suite_name}")
 
-    if args.task_suite_name == "libero_spatial":
-        max_steps = 220
-    elif args.task_suite_name == "libero_object":
-        max_steps = 280
-    elif args.task_suite_name == "libero_goal":
-        max_steps = 300
-    elif args.task_suite_name == "libero_10":
-        max_steps = 520
-    elif args.task_suite_name == "libero_90":
-        max_steps = 400
-    else:
+    max_steps_dict = {
+        "libero_spatial": 220,
+        "libero_object": 280,
+        "libero_goal": 300,
+        "libero_10": 520,
+        "libero_90": 400,
+    }
+    if args.task_suite_name not in max_steps_dict:
         raise ValueError(f"Unknown task suite: {args.task_suite_name}")
+    max_steps = max_steps_dict[args.task_suite_name]
+
 
     env, task_description, initial_states = None, None, None
-    for task_id in tqdm.tqdm(range(num_tasks_in_suite)):
+    for task_id in range(num_tasks_in_suite):
         task = task_suite.get_task(task_id)
-        if task.name != args.task_name:
-            continue
-        env, task_description = _get_libero_env(task, LIBERO_ENV_RESOLUTION, args.seed)
-        initial_states = task_suite.get_task_init_states(task_id)
-        break
+        if task.name == args.task_name:
+            env, task_description = _get_libero_env(task, LIBERO_ENV_RESOLUTION, args.seed)
+            initial_states = task_suite.get_task_init_states(task_id)
+            break    
     
     if env is None:
         raise ValueError(f"Task {args.task_name} not found in task suite {args.task_suite_name}")
     return env, max_steps, task_description, initial_states
 
 
-def format_libero_obs_for_agent(obs, task_embedding):
+def format_libero_obs_for_agent(obs, task_embedding, sim_state):
+    
+    # construct and normalize proprio
     proprio = np.concatenate((obs["robot0_eef_pos"],
                               _quat2axisangle(obs["robot0_eef_quat"]),
                               obs["robot0_gripper_qpos"],
                             ), dtype=np.float32)
     proprio = normalize_proprio(proprio)
 
+    # flip image horizontally and normalize into [-1, 1]
     image_primary = np.array(obs["agentview_image"][::-1, ::])
-    image_wrist = np.array(obs["robot0_eye_in_hand_image"][::-1, ::])
-    
+    image_wrist = np.array(obs["robot0_eye_in_hand_image"][::-1, ::])    
     image_primary = normalize_image(image_primary)
     image_wrist = normalize_image(image_wrist)
-
     
-
-    proprio = proprio[np.newaxis, :] # go from (8,) to (1, 8)
+    
     obs = {
         'task_embedding': task_embedding,
-        'proprio': proprio,
+        'proprio': proprio[np.newaxis, :], # reshaping to (1, 8) isntead of (8,)
         'image_primary': image_primary,
         'image_wrist': image_wrist,
+        'sim_state': sim_state[np.newaxis, :], # reshaping to (1, 51) isntead of (51,)
     }
     return obs
 
 def format_agent_action_for_libero(action, is_gripper_closed, num_consecutive_gripper_change_actions, STICKY_GRIPPER_NUM_STEPS=1):
-    action = unnormalize_action(np.array(action))
-    action = np.clip(action, -1, 1) # TODO(YY): might not be needed...
+    # first, unnormalize + clip the non-gripper actions
+    action = unnormalize_action(np.array(action)).flatten() # flatten to remove batch dimension
+    action = np.clip(action, -1, 1)
 
-    # sticky gripper logic
+    # sticky gripper logic: set gripper to -1/1 based on consecutive gripper change requests
     if (action[-1] > 0) != is_gripper_closed:
         num_consecutive_gripper_change_actions += 1
     else:
@@ -165,7 +159,6 @@ def evaluate(agent, args: Args):
     # setup actor and env
     actor_fn = supply_rng(agent.sample_actions, rng=jax.random.PRNGKey(np.random.randint(0, 2**32)))
     env, max_steps, task_description, initial_states = setup_eval_env(args)
-    print(f"🤪🤪🤪 Task description: {task_description}")
     task_embedding = TEXT_ENCODER.encode(task_description)
     trajs = []
     stats = defaultdict(list)
@@ -174,7 +167,7 @@ def evaluate(agent, args: Args):
 
     # eval loop
     num_success_episodes = 0
-    for episode_idx in tqdm.tqdm(range(args.num_eval_episodes)):
+    for episode_idx in tqdm.tqdm(range(args.num_eval_episodes), desc=f"🤪🤪🤪  Evaulating episodes on task: {task_description}, num_success_episodes: {num_success_episodes}"):
         traj = defaultdict(list)
 
         env.reset()    
@@ -184,30 +177,28 @@ def evaluate(agent, args: Args):
         is_gripper_closed = False
         num_consecutive_gripper_change_actions = 0
 
-       
+        # store frames for video rendering      
         render = []
         wrist_render = []
-        t = 0
-        
-        while t < max_steps + args.num_steps_wait:
-            if t < args.num_steps_wait:
-                obs, reward, done, info = env.step(LIBERO_DUMMY_ACTION)
-                t += 1
-                continue            
 
-            ## TODO(YY): format obs output by libero into obs expected by agent; especially NORMALIZATION !! 
-            obs = format_libero_obs_for_agent(obs, task_embedding)
+        # take some dummy steps to initialize the environment
+        for _ in range(args.num_steps_wait):
+            obs, reward, done, info = env.step(LIBERO_DUMMY_ACTION)
+            sim_state = env.get_sim_state()
+        
+        # start the main eval loop per episode
+        for t in range(max_steps):
+            obs = format_libero_obs_for_agent(obs, task_embedding, sim_state)
             action = actor_fn(observations=obs, temperature=args.eval_temperature)
-            action = np.array(action)
             action, is_gripper_closed, num_consecutive_gripper_change_actions = format_agent_action_for_libero(action, is_gripper_closed, num_consecutive_gripper_change_actions)
-            ## TODO(YY): format action output by agent into action expected by libero; especially UN-NORMALIZATION !! 
 
             next_obs, reward, done, info = env.step(action)
-            import pdb; pdb.set_trace()
+            sim_state = env.get_sim_state()
+            info['success'] = float(1 if done else 0)
 
             if t % args.video_frame_skip == 0 or done:
                 render.append(unnormalize_image(obs["image_primary"]))
-                # wrist_render.append(obs["image_wrist"])
+                wrist_render.append(unnormalize_image(obs["image_wrist"]))
 
             transition = dict(
                 observation=obs,
@@ -223,7 +214,6 @@ def evaluate(agent, args: Args):
             if done:
                 num_success_episodes += 1
                 break
-            t += 1
 
         add_to(stats, flatten(info))
         trajs.append(traj)

@@ -206,6 +206,13 @@ class CombinedEncoder(nn.Module):
             mlp_hidden_dims=self.mlp_hidden_dims, 
             layer_norm=self.layer_norm)(stacked_images, combined_vector, train=train)     
         return out
+
+
+class StateSpaceEncoder(nn.Module):
+    @nn.compact
+    def __call__(self, obs, train=True):
+        out = obs['sim_state'][:, 1:] # remove the first dimension, which is the timestep
+        return out
         
         
         
@@ -220,5 +227,7 @@ encoder_modules = {
     'film_impala_debug': functools.partial(FiLMImpalaEncoder, num_blocks=1, stack_sizes=(4, 4)),
     'combined_encoder_debug': functools.partial(CombinedEncoder, num_blocks=1, stack_sizes=(4, 4), mlp_hidden_dims=(128,)),
     'combined_encoder_small': functools.partial(CombinedEncoder, num_blocks=1),
+    'combined_encoder_medium': functools.partial(CombinedEncoder, stack_sizes=(32, 64, 64), mlp_hidden_dims=(128,)),
     'combined_encoder_large': functools.partial(CombinedEncoder, stack_sizes=(64, 128, 128), mlp_hidden_dims=(1024,)),
+    'state_space_encoder': StateSpaceEncoder,
 }

@@ -11,3 +11,10 @@ Setup:
 Note:
 - at the VERY TOP of each file you will run, place: import tensorflow as tf
 tf.config.set_visible_devices([], "GPU"), so that the dataloader doesn't take GPU mem
+
+
+When the LIBERO submodule github gets updated, run git submodule update --remote --merge, in order to pull in new changes!
+
+Stuff that is KILLING the dataloading speed:
+1. image augmentation stack
+2. my custom normalization functions (need to refactor these into the TFDS pipeline as transforms)

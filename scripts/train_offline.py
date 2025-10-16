@@ -22,9 +22,9 @@ from agents import agents
 
 from utils.data_utils import ratios_to_odds_mixture
 from utils.flax_utils import restore_agent, save_agent
-from utils.logging import CsvLogger, get_exp_name, get_flag_dict, get_wandb_video, setup_wandb
-from utils.logging import build_network_tree
-from utils.logging import get_sample_input_output_log_to_wandb
+from utils.logger import CsvLogger, get_exp_name, get_flag_dict, get_wandb_video, setup_wandb
+from utils.logger import build_network_tree
+from utils.logger import get_sample_input_output_log_to_wandb
 
 from evaluation.eval_libero import evaluate, Args
 
@@ -40,10 +40,10 @@ flags.DEFINE_string('restore_path', None, 'Restore path.')
 flags.DEFINE_integer('restore_epoch', None, 'Restore epoch.')
 
 # training flags
-flags.DEFINE_integer('offline_steps', 100, 'Number of offline steps.')
-flags.DEFINE_integer('log_interval', 1, 'Logging interval.')
-flags.DEFINE_integer('eval_interval', 10, 'Evaluation interval.')
-flags.DEFINE_integer('save_interval', 1000000, 'Saving interval.')
+flags.DEFINE_integer('offline_steps', 1_000_000, 'Number of offline steps.')
+flags.DEFINE_integer('log_interval', 100, 'Logging interval.')
+flags.DEFINE_integer('eval_interval', 100_000, 'Evaluation interval.')
+flags.DEFINE_integer('save_interval', 10_000_000, 'Saving interval.')
 flags.DEFINE_integer('num_input_output_to_log', 2, 'Number of transitions to log to wand, to serve as sanity-check.')
 
 # eval flags
@@ -54,7 +54,7 @@ flags.DEFINE_float('eval_temperature', 1.0, 'Temperature for the actor.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
 # more eval flags - might have to refactor tihs
-flags.DEFINE_string('task_suite_name', 'libero_10', 'Task suite name.')
+flags.DEFINE_string('task_suite_name', '', 'Task suite name.')
 flags.DEFINE_string('task_name', '', 'Task name.')
 
 # dataset flags
@@ -70,24 +70,21 @@ flags.DEFINE_boolean('binarize_gripper', True, 'Whether to binarize the gripper 
 
 
 # agent configuration
-config_flags.DEFINE_config_file('agent', 'agents/iql.py', lock_config=False) # TODO(YY): fix this later, otherwise json.dump doesn't reflect our new agent_config
 agent_config = ml_collections.ConfigDict(
     dict(
         agent_name='iql',  # Agent name.
-        optimizer=optax.adam,
         lr=3e-4,
-        batch_size=256,  # Batch size.
         actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.
         value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
         layer_norm=True,  # Whether to use layer normalization.
-        actor_layer_norm=False,  # Whether to use layer normalization for the actor.
+        actor_layer_norm=True,  # Whether to use layer normalization for the actor.
         discount=0.99,  # Discount factor.
         tau=0.005,  # Target network update rate.
         expectile=0.9,  # IQL expectile.
         actor_loss='awr',  # Actor loss type ('awr' or 'ddpgbc').
-        alpha=10.0,  # Temperature in AWR or BC coefficient in DDPG+BC.
+        alpha=0.0,  # Temperature in AWR or BC coefficient in DDPG+BC.
         const_std=True,  # Whether to use constant standard deviation for the actor.
-        encoder='combined_encoder_large',  # Visual encoder name (None, 'impala_small', etc.).
+        encoder='state_space_encoder',  # Visual encoder name (None, 'impala_small', etc.).
     )
     )
 
@@ -103,6 +100,10 @@ def main(_):
     flag_dict = get_flag_dict()
     with open(os.path.join(FLAGS.save_dir, 'flags.json'), 'w') as f:
         json.dump(flag_dict, f)
+    # Save agent config
+    agent_config_dict = agent_config.to_dict()    
+    with open(os.path.join(FLAGS.save_dir, 'agent_config.json'), 'w') as f:
+        json.dump(agent_config_dict, f, indent=2)
 
     # setup randomization
     random.seed(FLAGS.seed)
@@ -122,6 +123,7 @@ def main(_):
         'train': True
     }
     train_dataloader = create_data_loader(train_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+    data_iter = iter(train_dataloader)
 
     if FLAGS.do_validation:
         val_dataset_mix = ratios_to_odds_mixture(json.loads(FLAGS.val_dataset_mix))
@@ -137,10 +139,12 @@ def main(_):
             'train': False
         } 
         val_dataloader = create_data_loader(val_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+        val_data_iter = iter(val_dataloader)
     else:
         val_dataloader = None
+        val_data_iter = None
     
-    example_batch = train_dataloader.example_batch()
+    example_batch = next(data_iter)
 
     # setup agent
     agent_class = agents[agent_config['agent_name']]
@@ -169,14 +173,11 @@ def main(_):
 
     # training loop
     expl_metrics = dict()
-    data_iter = iter(train_dataloader)
-    val_data_iter = iter(val_dataloader)
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1), smoothing=0.1, dynamic_ncols=True):
         batch = next(data_iter)
         agent, info = agent.update(batch)
-
         # log few inputs to wandb: logs 0th transition in batch
-        if i < FLAGS.num_input_output_to_log:
+        if i < FLAGS.num_input_output_to_log + 1:
             dict_to_log = get_sample_input_output_log_to_wandb(batch)
             wandb.log(dict_to_log, step=i)
 
@@ -195,7 +196,7 @@ def main(_):
             train_logger.log(train_metrics, step=i)
 
         # evaluate agent
-        if FLAGS.eval_interval != 0 and (i == 1 or i % FLAGS.eval_interval == 0):
+        if FLAGS.eval_interval != 0 and (i == 0 or i % FLAGS.eval_interval == 0):
             renders = []
             wrist_renders = []
             eval_metrics = {}
@@ -230,6 +231,7 @@ def main(_):
 
     train_logger.close()
     eval_logger.close()
+    print(f"🥳🥳Training finished!")
 
 
 if __name__ == '__main__':

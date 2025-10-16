@@ -58,7 +58,7 @@ def flip_images_horizontally(traj):
 
 OXE_DATASET_CONFIGS = {
 
-    "libero_90_put_the_black_bowl_on_the_plate": {
+    "libero_90__black_bowl_on_plate_kitchen_scene1": {
         "image_obs_keys": {
             "primary": "image",
             "secondary": None,
@@ -66,6 +66,7 @@ OXE_DATASET_CONFIGS = {
         },
         "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
         "state_obs_keys": ["state"],
+        "sim_state_key": "sim_state",
         "action_encoding": ActionEncoding.EEF_POS,
     },
 

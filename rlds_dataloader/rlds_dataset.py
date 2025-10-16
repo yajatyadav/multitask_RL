@@ -46,6 +46,7 @@ def make_dataset_from_rlds(
     image_obs_keys: Dict[str, Optional[str]] = {},
     depth_obs_keys: Dict[str, Optional[str]] = {},
     state_obs_keys: List[Optional[str]] = (),
+    sim_state_key: Optional[str] = None,
     language_key: Optional[str] = None,
     action_proprio_normalization_type = None,
     dataset_statistics: Optional[Union[dict, str]] = None,
@@ -166,6 +167,8 @@ def make_dataset_from_rlds(
                 ],
                 axis=1,
             )
+        if sim_state_key:
+            new_obs["sim_state"] = old_obs[sim_state_key]
 
         # add timestep info
         new_obs["timestep"] = tf.range(traj_len)
@@ -247,7 +250,7 @@ def make_dataset_from_rlds(
     dataset = dataset.traj_map(restructure, num_parallel_calls)
     
     if action_proprio_normalization_type is not None:
-        print(f" Performing action-proprio normalization inside the OpenVLA dataloader! ")
+        raise NotImplementedError("Action-proprio normalization is not meant to be used via the OpenVLA dataloader.")
     dataset = dataset.traj_map(
         partial(
             normalize_action_and_proprio,
@@ -431,14 +434,14 @@ def apply_frame_transforms(
         num_parallel_calls,
     )
 
-    # if train:
-    #     # Augment all images with the same seed, skipping padding images
-    #     def aug(frame: dict):
-    #         seed = tf.random.uniform([2], maxval=tf.dtypes.int32.max, dtype=tf.int32)
-    #         aug_fn = partial(obs_transforms.augment, seed=seed, augment_kwargs=image_augment_kwargs)
-    #         return apply_obs_transform(aug_fn, frame)
+    if train:
+        # Augment all images with the same seed, skipping padding images
+        def aug(frame: dict):
+            seed = tf.random.uniform([2], maxval=tf.dtypes.int32.max, dtype=tf.int32)
+            aug_fn = partial(obs_transforms.augment, seed=seed, augment_kwargs=image_augment_kwargs)
+            return apply_obs_transform(aug_fn, frame)
 
-    #     dataset = dataset.frame_map(aug, num_parallel_calls)
+        dataset = dataset.frame_map(aug, num_parallel_calls)
 
     return dataset
 
@@ -479,6 +482,7 @@ def make_interleaved_dataset(
     *,
     train: bool,
     shuffle_buffer_size: int,
+    infinite_dataset: bool = True,
     traj_transform_kwargs: Optional[Dict] = None,
     frame_transform_kwargs: Optional[Dict] = None,
     batch_size: Optional[int] = None,
@@ -573,7 +577,7 @@ def make_interleaved_dataset(
             dataset_statistics=all_dataset_statistics[dataset_kwargs["name"]],
         )
         dataset = apply_trajectory_transforms(
-            dataset.repeat(),
+            dataset.repeat() if infinite_dataset else dataset, # by default, we sample from infinite-sized datasets; however, for applications like computing norm stats, we want to sample over 1 epoch only!!
             **traj_transform_kwargs,
             num_parallel_calls=threads,
             train=train,

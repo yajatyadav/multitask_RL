@@ -152,12 +152,14 @@ def get_sample_input_output_log_to_wandb(batch):
     """Log sample input and output to wandb."""
     def log_obs(obs, obs_type):
         image_primary, image_wrist = obs["image_primary"], obs["image_wrist"]
+        sim_state = obs["sim_state"]
         proprio = obs["proprio"]
         return {
             f"{obs_type}/image_primary": wandb.Image(image_primary[0]),
             f"{obs_type}/image_wrist": wandb.Image(image_wrist[0]),
             f"{obs_type}/proprio": wandb.Table(columns=[f"{obs_type}_proprio_{i}" for i in range(len(proprio[0]))], 
             data=[proprio[0].tolist()]),
+            f"{obs_type}/sim_state": wandb.Table(columns=[f"{obs_type}_sim_state_{i}" for i in range(len(sim_state[0]))], data=[sim_state[0].tolist()]),
         }
     dict_to_log = {}
     dict_to_log.update(log_obs(batch["observations"], "observations"))

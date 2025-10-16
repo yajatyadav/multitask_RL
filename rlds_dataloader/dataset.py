@@ -19,6 +19,7 @@ from rlds_dataloader.data_utils import NormalizationType
 # HuggingFace Default / LLaMa-2 IGNORE_INDEX (for labels)
 IGNORE_INDEX = -100
 WORKER_SCALE_FACTOR = 4
+from utils.data_utils import LIBERO_ENV_RESOLUTION
 
 class RLDSDataset(IterableDataset):
     def __init__(
@@ -35,8 +36,9 @@ class RLDSDataset(IterableDataset):
         valid_episodes: List[int] = [],
         shuffle_buffer_size: int = 256_000,
         train: bool = True,
+        infinite_dataset: bool = True,
         image_aug: bool = True,
-        skip_norm_stats: bool = False,
+        skip_norm_stats: bool = True,
     ) -> None:
         """Lightweight wrapper around RLDS TFDS Pipeline for use with PyTorch/OpenVLA Data Loaders."""
         self.data_root_dir = data_root_dir
@@ -64,7 +66,7 @@ class RLDSDataset(IterableDataset):
         
         ## TODO(YY): MAKE sure action chunking is correct
         rlds_config = dict(
-            # batch_size=self.batch_size,
+            batch_size=self.batch_size,
             traj_transform_kwargs=dict(
                 window_size=window_size,                                      # If we wanted to feed / predict more than one step
                 future_action_window_size=0,                        # For action chunking
@@ -72,6 +74,7 @@ class RLDSDataset(IterableDataset):
                 goal_relabeling_strategy=None,                 # Goals are currently unused
             ),
             frame_transform_kwargs=dict(
+                resize_size={"image_primary": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION), "image_wrist": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION)},
                 num_parallel_calls=self.num_workers,                       # For CPU-intensive ops (decoding, resizing, etc.)
             ),
             dataset_kwargs_list=per_dataset_kwargs,
@@ -83,6 +86,7 @@ class RLDSDataset(IterableDataset):
             traj_transform_threads=len(mixture_spec),
             traj_read_threads=len(mixture_spec),
             train=train,
+            infinite_dataset=infinite_dataset,
         )
         
         # If applicable, enable image augmentations

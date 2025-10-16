@@ -1,11 +1,9 @@
-import tensorflow as tf
-tf.config.set_visible_devices([], "GPU")
-
-from evaluation.eval_libero import evaluate, Args
 from agents.iql import IQLAgent
 from rlds_dataloader.dataloader import create_data_loader
 import ml_collections
 import optax
+import tqdm
+import numpy as np
 
 if __name__ == "__main__":
 
@@ -15,26 +13,25 @@ if __name__ == "__main__":
             'libero_90__black_bowl_on_plate_kitchen_scene1': 1.0,
         },
         'balance_datasets': True,
-        'batch_size': 4,
-        'num_workers': 2,
+        'batch_size': 256,
+        'num_workers': 16,
         'seed': 42,
-        'do_image_aug': True,
+        'do_image_aug': False,
         'binarize_gripper': True,
         'train': True
     }
 
 
     train_dataloader = create_data_loader(train_dataloader_config, skip_norm_stats=True)
-    example_batch = train_dataloader.example_batch()
+    data_iter = iter(train_dataloader)
+    example_batch = next(data_iter)
 
     agent_config = ml_collections.ConfigDict(
     dict(
         agent_name='iql',  # Agent name.
-        optimizer=optax.adam,
         lr=3e-4,
-        batch_size=256,  # Batch size.
-        actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.
-        value_hidden_dims=(1,),  # Value network hidden dimensions.
+        actor_hidden_dims=(16,),  # Actor network hidden dimensions.
+        value_hidden_dims=(16,),  # Value network hidden dimensions.
         layer_norm=True,  # Whether to use layer normalization.
         actor_layer_norm=True,  # Whether to use layer normalization for the actor.
         discount=0.99,  # Discount factor.
@@ -55,13 +52,15 @@ if __name__ == "__main__":
         agent_config,
     )
 
-    args = Args(
-        seed=0,
-        num_eval_episodes=1,
-        num_steps_wait=10,
-        video_frame_skip=3,
-        eval_temperature=1.0,
-        task_suite_name="libero_90",
-        task_name="KITCHEN_SCENE1_put_the_black_bowl_on_the_plate",
-    )
-    evaluate(agent, args)
+    actor = agent.network.select('actor')
+
+    for batch in tqdm.tqdm(data_iter):
+        actor_dist = actor(batch['observations'], params=agent.network.params)
+        log_prob = actor_dist.log_prob(batch['actions'])
+        # find indices where log_prob is nan
+        nan_indices = np.where(np.isnan(log_prob))
+        # print each action vector that caused a nan log_prob
+        for index in nan_indices:
+            print(batch['actions'][index])
+        if not nan_indices:
+            print("No nan log_probs found in this batch!")
