@@ -191,9 +191,6 @@ class CombinedEncoder(nn.Module):
         image_primary = obs['image_primary']
         image_wrist = obs['image_wrist']
         
-
-        # concat task_embedding with proprio, this combined vector will modulate the image_primary and image_wrist~
-        combined_vector = jnp.concatenate([task_embedding, proprio], axis=-1)
         
         # instead of calling impala twice, just stack images channel-wise and pass this 6-channel image to FilmImpalaEncoder
         stacked_images = jnp.concatenate([image_primary, image_wrist], axis=-1)
@@ -204,8 +201,9 @@ class CombinedEncoder(nn.Module):
             num_blocks=self.num_blocks, 
             dropout_rate=self.dropout_rate, 
             mlp_hidden_dims=self.mlp_hidden_dims, 
-            layer_norm=self.layer_norm)(stacked_images, combined_vector, train=train)     
-        return out
+            layer_norm=self.layer_norm)(stacked_images, task_embedding, train=train)     
+        combined_out = jnp.concatenate([out, proprio], axis=-1)
+        return combined_out
 
 
 class StateSpaceEncoder(nn.Module):

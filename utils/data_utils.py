@@ -121,6 +121,8 @@ def normalize_libero_batch(batch, dataset_name: str):
 
     action = batch["actions"]
 
+    ## image normalization no longer needed- handled by applying an obs_transform in RLDS
+
     # image_primary = normalize_image(image_primary)
     # image_wrist = normalize_image(image_wrist)
     proprio = normalize_proprio(proprio, norm_stats)
@@ -159,8 +161,8 @@ def normalize_libero_eval_obs_for_agent(obs, dataset_name: str):
     proprio = obs["proprio"]
     sim_state = obs["sim_state"]
 
-    image_primary = normalize_image(image_primary)
-    image_wrist = normalize_image(image_wrist)
+    # image_primary = normalize_image(image_primary) # TODO(YY): uncomment once training images are ALSO normalized
+    # image_wrist = normalize_image(image_wrist)
     proprio = normalize_proprio(proprio, norm_stats)
     if "observations/sim_state" in norm_stats:
         sim_state = normalize_sim_state(sim_state, norm_stats)
@@ -254,15 +256,24 @@ def unnormalize_action_mean_std(action, dataset_name: str):
     return action
 
 
+import numpy as np
+
+# Create lookup table once (at startup)
+# NORMALIZE_LUT = (np.arange(256, dtype=np.float32) / 255.0 * 2.0 - 1.0)
+# # fast way to normalize images into [-1, 1] by just indexing into a lookup table
+# def normalize_image(image):
+#     return NORMALIZE_LUT[image]
+
+
 # puts images in range [-1, 1]
-def normalize_image(image):
-    assert image.dtype == np.uint8
-    image = image.astype(np.float32) / 255.0 * 2.0 - 1.0
-    return image
+# def normalize_image(image):
+#     assert image.dtype == np.uint8
+#     image = image.astype(np.float32) / 255.0 * 2.0 - 1.0
+#     return image
 
 
-def unnormalize_image(image):
-    assert image.dtype == np.float32
-    image = (image + 1.0) / 2.0 * 255.0
-    image = image.astype(np.uint8)
-    return image
+# def unnormalize_image(image):
+#     assert image.dtype == np.float32
+#     image = (image + 1.0) / 2.0 * 255.0
+#     image = image.astype(np.uint8)
+#     return image

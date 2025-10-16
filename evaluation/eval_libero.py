@@ -16,7 +16,7 @@ from libero.libero import benchmark
 from libero.libero import get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 from utils.data_utils import MuseEmbedding
-from utils.data_utils import normalize_libero_eval_obs_for_agent, unnormalize_action_mean_std, unnormalize_image, unnormalize_action_min_max
+from utils.data_utils import normalize_libero_eval_obs_for_agent, unnormalize_action_mean_std, unnormalize_action_min_max
 
 from utils.data_utils import LIBERO_ENV_RESOLUTION
 LIBERO_DUMMY_ACTION = [0.0] * 6 + [-1.0]
@@ -123,12 +123,14 @@ def format_libero_obs_for_agent(obs, task_embedding, sim_state, dataset_name):
     image_wrist = np.array(obs["robot0_eye_in_hand_image"][::-1, ::])
 
     sim_state = np.array(sim_state, dtype=np.float32)
-
+    
+    # add a batch dimension to all elements
     obs_to_normalize = {
-            'image_primary': image_primary,
-            'image_wrist': image_wrist,
-            'proprio': proprio[np.newaxis, :], # reshaping to (1, 8) isntead of (8,)
-            'sim_state': sim_state[np.newaxis, :], # reshaping to (1, 51) isntead of (51,)
+            'task_embedding': task_embedding[np.newaxis, :],
+            'image_primary': image_primary[np.newaxis, :],
+            'image_wrist': image_wrist[np.newaxis, :],
+            'proprio': proprio[np.newaxis, :],
+            'sim_state': sim_state[np.newaxis, :],
     }
     obs = normalize_libero_eval_obs_for_agent(obs_to_normalize, dataset_name=dataset_name)
     return obs

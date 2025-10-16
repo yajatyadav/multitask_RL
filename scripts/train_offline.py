@@ -187,7 +187,8 @@ def main(_):
     expl_metrics = dict()
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1), smoothing=0.1, dynamic_ncols=True):
         batch = next(data_iter)
-        agent, info = agent.update(batch)
+        # agent, info = agent.update(batch)
+        info = {}
         # log few inputs to wandb: logs 0th transition in batch
         if i < FLAGS.num_input_output_to_log + 1:
             dict_to_log = get_sample_input_output_log_to_wandb(batch)
@@ -208,7 +209,7 @@ def main(_):
             train_logger.log(train_metrics, step=i)
 
         # evaluate agent
-        if FLAGS.eval_interval != 0 and (i == 1 or i % FLAGS.eval_interval == 0):
+        if FLAGS.eval_interval != 0 and (i == 0 or i % FLAGS.eval_interval == 0):
             renders = []
             wrist_renders = []
             eval_metrics = {}

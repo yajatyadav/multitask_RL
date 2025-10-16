@@ -41,6 +41,18 @@ def augment(obs: Dict, seed: tf.Tensor, augment_kwargs: Union[Dict, Dict[str, Di
 
     return obs
 
+def normalize_rgb_minus1_1(obs: Dict) -> Dict:
+    # Normalize only RGB images that are tf.uint8
+    image_names = {key[6:] for key in obs if key.startswith("image_")}
+    for name in image_names:
+        img = obs[f"image_{name}"]
+        # Cast uint8 -> float32 in [0,1] using TF kernel, then map to [-1,1]
+        # convert_image_dtype is highly optimized and vectorized
+        img = tf.image.convert_image_dtype(img, dtype=tf.float32)
+        img = img * 2.0 - 1.0
+        obs[f"image_{name}"] = img
+    return obs
+
 
 def decode_and_resize(
     obs: Dict,

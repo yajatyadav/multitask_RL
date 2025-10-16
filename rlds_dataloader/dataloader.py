@@ -23,7 +23,21 @@ class RLDSDataLoader():
         curr_and_next_observation = batch["observation"]
 
         observation = tf.nest.map_structure(lambda x: x[:, 0], curr_and_next_observation)
-        next_observation = tf.nest.map_structure(lambda x: x[:, 1], curr_and_next_observation)        
+        next_observation = tf.nest.map_structure(lambda x: x[:, 1], curr_and_next_observation)      
+        observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
+        next_observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])  
+
+        # squeeze out the window dimension from actions
+        action = np.squeeze(action, axis=1)
+        # action = normalize_action(action)
+        # normalize each action in batch
+        # action = np.apply_along_axis(normalize_action, axis=1, arr=action)        
+
+        # make masks using is_terminals: 0 if terminal, 1 if not
+        masks = np.where(is_terminal, 0, 1)
+
+        ## map rewards: 0-> -1, 1 -> 0
+        reward = np.where(reward == 0, -1, 0)
        
 
         # let's add task under observation and next_observation to be used in FiLM modulation of visual observations
@@ -34,8 +48,7 @@ class RLDSDataLoader():
         # next_observation['image_wrist'] = normalize_image(next_observation['image_wrist'])
         # next_observation['proprio'] = normalize_proprio(next_observation['proprio'])
 
-        # observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
-        # next_observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
+        
 
         # let's explicitly convert obs image to uint8, and also proprio normalize
         # observation['image_primary'] = np.apply_along_axis(normalize_image, axis=1, arr=observation['image_primary'])
@@ -45,19 +58,6 @@ class RLDSDataLoader():
         # next_observation['image_primary'] = np.apply_along_axis(normalize_image, axis=1, arr=next_observation['image_primary'])
         # next_observation['image_wrist'] = np.apply_along_axis(normalize_image, axis=1, arr=next_observation['image_wrist'])
         # next_observation['proprio'] = np.apply_along_axis(normalize_proprio, axis=1, arr=next_observation['proprio'])
-
-        # squeeze out the window dimension from actions
-        action = np.squeeze(action, axis=1)
-        # action = normalize_action(action)
-        # normalize each action in batch
-        # action = np.apply_along_axis(normalize_action, axis=1, arr=action)
-        
-
-        # make masks using is_terminals: 0 if terminal, 1 if not
-        masks = np.where(is_terminal, 0, 1)
-
-        ## map rewards: 0-> -1, 1 -> 0
-        reward = np.where(reward == 0, -1, 0)
 
   
 

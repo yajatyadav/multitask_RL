@@ -392,6 +392,7 @@ def apply_frame_transforms(
     dataset: dl.DLataset,
     *,
     train: bool,
+    normalize_images: bool = True,
     image_augment_kwargs: Union[Dict, Dict[str, Dict]] = {},
     resize_size: Union[Tuple[int, int], Dict[str, Tuple[int, int]]] = {},
     depth_resize_size: Union[Tuple[int, int], Dict[str, Tuple[int, int]]] = {},
@@ -433,6 +434,15 @@ def apply_frame_transforms(
         ),
         num_parallel_calls,
     )
+    
+    if normalize_images:
+        dataset = dataset.frame_map(
+        partial(
+            apply_obs_transform,
+            obs_transforms.normalize_rgb_minus1_1,
+        ),
+        num_parallel_calls,
+       )
 
     if train:
         # Augment all images with the same seed, skipping padding images
