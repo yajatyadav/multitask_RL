@@ -209,7 +209,7 @@ def main(_):
             train_logger.log(train_metrics, step=i)
 
         # evaluate agent
-        if FLAGS.eval_interval != 0 and (i == 0 or i % FLAGS.eval_interval == 0):
+        if FLAGS.eval_interval != 0 and (i == 1 or i % FLAGS.eval_interval == 0):
             renders = []
             wrist_renders = []
             eval_metrics = {}
