@@ -4,7 +4,8 @@ datasets.py
 Lightweight PyTorch Dataset Definition for wrapping RLDS TFDS Pipeline; just defines transform from RLDS default
 format to OpenVLA, IterableDataset shim.
 """
-
+import tensorflow as tf
+tf.config.set_visible_devices([], "GPU")
 
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -35,16 +36,19 @@ class RLDSDataset(IterableDataset):
         window_size: int,
         valid_episodes: List[int] = [],
         shuffle_buffer_size: int = 256_000,
+        prefetch_factor: int = 2,
         train: bool = True,
         infinite_dataset: bool = True,
         image_aug: bool = True,
         skip_norm_stats: bool = True,
+        normalize_images: bool = True,
     ) -> None:
         """Lightweight wrapper around RLDS TFDS Pipeline for use with PyTorch/OpenVLA Data Loaders."""
         self.data_root_dir = data_root_dir
         self.action_horizon = action_horizon
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.prefetch_factor = prefetch_factor
 
         action_proprio_normalization_type = None if skip_norm_stats else NormalizationType.NORMAL
 
@@ -76,15 +80,14 @@ class RLDSDataset(IterableDataset):
             frame_transform_kwargs=dict(
                 resize_size={"image_primary": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION), "image_wrist": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION)},
                 num_parallel_calls=self.num_workers,                       # For CPU-intensive ops (decoding, resizing, etc.)
+                normalize_images=normalize_images,
             ),
             dataset_kwargs_list=per_dataset_kwargs,
             shuffle_buffer_size=shuffle_buffer_size,
             sample_weights=weights,
             balance_weights=balance_datasets,
-            # traj_transform_threads= self.num_workers * len(mixture_spec),
-            # traj_read_threads= WORKER_SCALE_FACTOR * len(mixture_spec),
-            traj_transform_threads=len(mixture_spec),
-            traj_read_threads=len(mixture_spec),
+            traj_transform_threads=self.num_workers * len(mixture_spec),
+            traj_read_threads=self.num_workers * len(mixture_spec),
             train=train,
             infinite_dataset=infinite_dataset,
         )
@@ -114,7 +117,8 @@ class RLDSDataset(IterableDataset):
         return make_interleaved_dataset(**rlds_config)
 
     def __iter__(self) -> Dict[str, Any]:
-        for rlds_batch in self.dataset.as_numpy_iterator():
+        data_iterator = self.dataset.iterator(prefetch=self.prefetch_factor)
+        for rlds_batch in data_iterator:
             yield rlds_batch
 
     def __len__(self) -> int:

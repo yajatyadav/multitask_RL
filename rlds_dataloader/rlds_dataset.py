@@ -130,6 +130,7 @@ def make_dataset_from_rlds(
         REQUIRED_KEYS.add(language_key)
     def restructure(traj):
         # apply a standardization function, if provided
+        # this is where the gripper binarization is applied, although we could have just applied it as a trajectory transform as well...
         if standardize_fn is not None:
             traj = standardize_fn(traj)
 
@@ -251,14 +252,14 @@ def make_dataset_from_rlds(
     
     if action_proprio_normalization_type is not None:
         raise NotImplementedError("Action-proprio normalization is not meant to be used via the OpenVLA dataloader.")
-    dataset = dataset.traj_map(
-        partial(
-            normalize_action_and_proprio,
-            metadata=dataset_statistics,
-            normalization_type=action_proprio_normalization_type,
-        ),
-        num_parallel_calls,
-    )
+        dataset = dataset.traj_map(
+            partial(
+                normalize_action_and_proprio,
+                metadata=dataset_statistics,
+                normalization_type=action_proprio_normalization_type,
+            ),
+            num_parallel_calls,
+        )
     return dataset, dataset_statistics
 
 

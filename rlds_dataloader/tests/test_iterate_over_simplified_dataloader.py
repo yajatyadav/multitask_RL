@@ -5,13 +5,14 @@ import numpy as np
 
 # default is mean/std action-proprio normalization. Actions only first 6 dimensions normalized
 dataloader_config = {
-    "data_root_dir": "/raid/users/yajatyadav/datasets/raw_libero/raw_libero_RLDS/",
+    "data_root_dir": "../datasets/",
     "dataset_mix": { 
         "libero_90__black_bowl_on_plate_kitchen_scene1": 1.0, # weights are in terms of odds
     },
     "batch_size": 256,
     "balance_datasets": True,
     "num_workers": 24, # dataloader workers
+    "prefetch_factor": 5,
     "seed": 42,
     "do_image_aug": False, # check file for sequence: dict(
     "binarize_gripper": True, # binarizes to 0 and 1 (by scanning for transitions), and then normalizes to -1 and 1
@@ -21,7 +22,9 @@ dataloader_config = {
 
 dataloader = rlds_data_loader.create_data_loader(
     dataloader_config,
-    skip_norm_stats=True,
+    normalize_images=False,
+    normalize_batches=True,
+    prefetch_factor=10,
 )
 
 data_iter = iter(dataloader)

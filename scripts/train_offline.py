@@ -129,12 +129,13 @@ def main(_):
         'balance_datasets': FLAGS.balance_datasets,
         'batch_size': FLAGS.batch_size,
         'num_workers': FLAGS.num_workers,
+        "prefetch_factor": 5,
         'seed': FLAGS.seed,
         'do_image_aug': FLAGS.do_image_aug,
         'binarize_gripper': True,
         'train': True
     }
-    train_dataloader = create_data_loader(train_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+    train_dataloader = create_data_loader(train_dataloader_config, normalize_images=True, normalize_batches=True, infinite_dataset=True) # not using OpenVLA dataloader normalization func
     data_iter = iter(train_dataloader)
 
     if FLAGS.do_validation:
@@ -145,12 +146,13 @@ def main(_):
             'balance_datasets': FLAGS.balance_datasets,
             'batch_size': FLAGS.batch_size,
             'num_workers': FLAGS.num_workers,
+            'prefetch_factor': 5,
             'seed': FLAGS.seed,
             'do_image_aug': False,
             'binarize_gripper': True,
             'train': False
         } 
-        val_dataloader = create_data_loader(val_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+        val_dataloader = create_data_loader(val_dataloader_config, normalize_images=True, normalize_batches=True, infinite_dataset=True) # not using OpenVLA dataloader normalization func
         val_data_iter = iter(val_dataloader)
     else:
         val_dataloader = None
@@ -187,8 +189,7 @@ def main(_):
     expl_metrics = dict()
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1), smoothing=0.1, dynamic_ncols=True):
         batch = next(data_iter)
-        # agent, info = agent.update(batch)
-        info = {}
+        agent, info = agent.update(batch)
         # log few inputs to wandb: logs 0th transition in batch
         if i < FLAGS.num_input_output_to_log + 1:
             dict_to_log = get_sample_input_output_log_to_wandb(batch)
