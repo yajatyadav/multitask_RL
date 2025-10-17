@@ -11,8 +11,8 @@ dataloader_config = {
     },
     "batch_size": 256,
     "balance_datasets": True,
-    "num_workers": 24, # dataloader workers
-    "prefetch_factor": 5,
+    "num_workers": 1, # dataloader workers
+    "prefetch_factor": 2,
     "seed": 42,
     "do_image_aug": False, # check file for sequence: dict(
     "binarize_gripper": True, # binarizes to 0 and 1 (by scanning for transitions), and then normalizes to -1 and 1
@@ -22,9 +22,10 @@ dataloader_config = {
 
 dataloader = rlds_data_loader.create_data_loader(
     dataloader_config,
-    normalize_images=False,
+    load_images=False,
+    load_proprio=False,
+    load_language=False,
     normalize_batches=True,
-    prefetch_factor=10,
 )
 
 data_iter = iter(dataloader)
@@ -39,9 +40,9 @@ for i, batch in tqdm.tqdm(enumerate(data_iter)):
     if i == 1000:
         break
     
-    actions = batch['actions']
-    proprio = batch['observations']['proprio']
-    sim_state = batch['observations']['sim_state']
+    # actions = batch['actions']
+    # proprio = batch['observations']['proprio']
+    # sim_state = batch['observations']['sim_state']
     
     # print(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 

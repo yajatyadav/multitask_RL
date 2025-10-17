@@ -13,9 +13,9 @@ class RLDSDataLoader():
             self.text_encoder = MuseEmbedding
             self.config = config
             self.normalize_batches = normalize_batches
-    
     ## fix up the batch in a fromat downstream agents can more easily use
     def postprocess_batch(self, batch):
+        return batch
         task = batch["task"]
         action = batch["action"]
         reward = batch["reward"]
@@ -58,6 +58,9 @@ class RLDSDataLoader():
 
 def create_data_loader(
     config: dict,
+    load_images: bool,
+    load_proprio: bool,
+    load_language: bool,
     *,
     normalize_images: bool = True,
     normalize_batches: bool = True,
@@ -77,11 +80,14 @@ def create_data_loader(
         prefetch_factor=config["prefetch_factor"],
         action_horizon = 1,
         window_size = 2,
-        shuffle_buffer_size = 100_000,
+        shuffle_buffer_size = 20_000,
         skip_norm_stats = True,
         train = config["train"],
         image_aug = config["do_image_aug"],
         infinite_dataset=infinite_dataset,
+        load_images=load_images,
+        load_proprio=load_proprio,
+        load_language=load_language,
         normalize_images=normalize_images,
     )
     dataloader = RLDSDataLoader(config, dataset, normalize_batches=normalize_batches)

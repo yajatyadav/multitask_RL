@@ -70,6 +70,7 @@ flags.DEFINE_boolean('tanh_squash', True, 'whether the actor squashes output act
 flags.DEFINE_boolean('state_dependent_std', True, 'whether the actor network also outputs multivariate gaussian STD per state')
 flags.DEFINE_boolean('const_std', True, 'whether we use const std of 1 for all actor output distributions. Importantly, if const_std=False, state_dependent_std, then we still learn a std shared among ALL states')
 flags.DEFINE_float('alpha', 10.0, 'the temperature param for AWR. alpha=0 means BC, and higher alpha leads us to more greedily picking higher-advantage actions')
+flags.DEFINE_float('expectile', 0.9, 'the expectile for IQL')
 flags.DEFINE_float('lr', 3e-4, 'constant learning rate that Adam uses for all networks')
 flags.DEFINE_string('encoder', '', 'must specify what encoder- controls if we are using simulator state, image + proprio, or something else')
 
@@ -84,7 +85,7 @@ agent_config = ml_collections.ConfigDict(
         actor_layer_norm=True,  # Whether to use layer normalization for the actor.
         discount=0.99,  # Discount factor.
         tau=0.005,  # Target network update rate.
-        expectile=0.9,  # IQL expectile.
+        # expectile=0.9,  # IQL expectile.
         actor_loss='awr',  # Actor loss type ('awr' or 'ddpgbc').
         # alpha=0.0,  # Temperature in AWR or BC coefficient in DDPG+BC. will be filled in main()
         # const_std=True,  # Whether to use constant standard deviation for the actor. # to be filled in later
@@ -96,7 +97,6 @@ agent_config = ml_collections.ConfigDict(
 def main(_):
     # setup wandb
     exp_name = FLAGS.exp_name_prefix + get_exp_name(FLAGS.seed)
-    setup_wandb(project='multitask_RL', group=FLAGS.run_group, name=exp_name)
 
     # setup save dir
     FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, exp_name)
@@ -108,6 +108,7 @@ def main(_):
     agent_config.update(
         lr=FLAGS.lr,
         alpha=FLAGS.alpha,
+        expectile=FLAGS.expectile,
         tanh_squash=FLAGS.tanh_squash,
         const_std=FLAGS.const_std,
         state_dependent_std=FLAGS.state_dependent_std,
@@ -185,7 +186,8 @@ def main(_):
     console = Console()
     console.print(build_network_tree(network_params))
 
-    # training loop
+    # setup wandb and start training loop
+    setup_wandb(project='multitask_RL', group=FLAGS.run_group, name=exp_name, agent_config=agent_config_dict)
     expl_metrics = dict()
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1), smoothing=0.1, dynamic_ncols=True):
         batch = next(data_iter)

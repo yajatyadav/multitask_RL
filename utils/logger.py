@@ -68,11 +68,15 @@ def setup_wandb(
     name=None,
     mode='online',
     log_flags=True,
+    agent_config={},
 ):
     """Set up Weights & Biases for logging."""
     wandb_output_dir = tempfile.mkdtemp()
     tags = [group] if group is not None else None
-    config = get_flag_dict() if log_flags else None
+    flag_dict = get_flag_dict() if log_flags else None
+
+    config = {f"flags/{k}": v for k, v in flag_dict.items()}
+    config.update({f'agent_config/{k}': v for k, v in agent_config.items()})
 
     init_kwargs = dict(
         config=config,

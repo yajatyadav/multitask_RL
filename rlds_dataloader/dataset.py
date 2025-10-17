@@ -41,6 +41,9 @@ class RLDSDataset(IterableDataset):
         infinite_dataset: bool = True,
         image_aug: bool = True,
         skip_norm_stats: bool = True,
+        load_images: bool = False,
+        load_proprio: bool = False,
+        load_language: bool = False,
         normalize_images: bool = True,
     ) -> None:
         """Lightweight wrapper around RLDS TFDS Pipeline for use with PyTorch/OpenVLA Data Loaders."""
@@ -52,6 +55,15 @@ class RLDSDataset(IterableDataset):
 
         action_proprio_normalization_type = None if skip_norm_stats else NormalizationType.NORMAL
 
+        camera_views = ("primary", "secondary", "wrist") if load_images else ()
+        frame_transform_kwargs= dict()
+        if load_images:
+            frame_transform_kwargs.update(dict(
+                resize_size={"image_primary": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION), "image_wrist": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION)},
+                num_parallel_calls=self.num_workers,                       # For CPU-intensive ops (decoding, resizing, etc.)
+                normalize_images=normalize_images,
+            ))
+
 
 
         # fmt: off
@@ -60,10 +72,10 @@ class RLDSDataset(IterableDataset):
             mixture_spec,
             action_key_list=action_key_list,
             binarize_gripper=binarize_gripper,
-            load_camera_views=("primary", "secondary", "wrist"),
+            load_camera_views=camera_views,
             load_depth=False,
-            load_proprio=True,
-            load_language=True,
+            load_proprio=load_proprio,
+            load_language=load_language,
             action_proprio_normalization_type=action_proprio_normalization_type,
         )
 
@@ -77,17 +89,13 @@ class RLDSDataset(IterableDataset):
                 skip_unlabeled=False,                                # Skip trajectories without language labels
                 goal_relabeling_strategy=None,                 # Goals are currently unused
             ),
-            frame_transform_kwargs=dict(
-                resize_size={"image_primary": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION), "image_wrist": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION)},
-                num_parallel_calls=self.num_workers,                       # For CPU-intensive ops (decoding, resizing, etc.)
-                normalize_images=normalize_images,
-            ),
+            frame_transform_kwargs=frame_transform_kwargs,
             dataset_kwargs_list=per_dataset_kwargs,
             shuffle_buffer_size=shuffle_buffer_size,
             sample_weights=weights,
             balance_weights=balance_datasets,
-            traj_transform_threads=self.num_workers * len(mixture_spec),
-            traj_read_threads=self.num_workers * len(mixture_spec),
+            traj_transform_threads=2,
+            traj_read_threads=4,
             train=train,
             infinite_dataset=infinite_dataset,
         )
