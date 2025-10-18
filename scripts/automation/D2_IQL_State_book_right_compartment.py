@@ -95,6 +95,8 @@ def main():
                 contents[i] = 'sbatch'.join(cur)
     with open(f'scripts/auto_shell_scripts/{run_group}_sbatch.sh', 'w') as f:
         f.write('\n'.join(contents))
+    os.chmod(f'scripts/auto_shell_scripts/{run_group}_sbatch.sh', 0o755) # give execute permission
+    print(f'./scripts/auto_shell_scripts/{run_group}_sbatch.sh created. Simply run this file!')
 
 if __name__ == '__main__':
     main()
