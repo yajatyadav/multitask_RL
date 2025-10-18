@@ -3,7 +3,7 @@ import numpy as np
 
 def main():
     num_job_group = 1
-    sh_command = './run.sh'
+    sh_command = 'scripts/automation/run.sh'
     pre_sbatch_command = 'MUJOCO_GL=egl WANDB__SERVICE_WAIT=86400 XLA_PYTHON_CLIENT_PREALLOCATE=false OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 '
     num_groups = 4
     num_cpus = 1
@@ -93,10 +93,10 @@ def main():
                 cur = content.split('sbatch')
                 cur[1] = f' --dependency=afterany:$jobid{i - 1}' + cur[1]
                 contents[i] = 'sbatch'.join(cur)
-    with open(f'scripts/auto_shell_scripts/{run_group}_sbatch.sh', 'w') as f:
+    with open(f'scripts/shell_scripts/{run_group}_sbatch.sh', 'w') as f:
         f.write('\n'.join(contents))
-    os.chmod(f'scripts/auto_shell_scripts/{run_group}_sbatch.sh', 0o755) # give execute permission
-    print(f'./scripts/auto_shell_scripts/{run_group}_sbatch.sh created. Simply run this file!')
+    os.chmod(f'scripts/shell_scripts/{run_group}_sbatch.sh', 0o755) # give execute permission
+    print(f'./scripts/shell_scripts/{run_group}_sbatch.sh created. Simply run this file!')
 
 if __name__ == '__main__':
     main()
