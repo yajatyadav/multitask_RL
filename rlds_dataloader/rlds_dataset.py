@@ -130,6 +130,7 @@ def make_dataset_from_rlds(
         REQUIRED_KEYS.add(language_key)
     def restructure(traj):
         # apply a standardization function, if provided
+        # this is where the gripper binarization is applied, although we could have just applied it as a trajectory transform as well...
         if standardize_fn is not None:
             traj = standardize_fn(traj)
 
@@ -251,14 +252,14 @@ def make_dataset_from_rlds(
     
     if action_proprio_normalization_type is not None:
         raise NotImplementedError("Action-proprio normalization is not meant to be used via the OpenVLA dataloader.")
-    dataset = dataset.traj_map(
-        partial(
-            normalize_action_and_proprio,
-            metadata=dataset_statistics,
-            normalization_type=action_proprio_normalization_type,
-        ),
-        num_parallel_calls,
-    )
+        dataset = dataset.traj_map(
+            partial(
+                normalize_action_and_proprio,
+                metadata=dataset_statistics,
+                normalization_type=action_proprio_normalization_type,
+            ),
+            num_parallel_calls,
+        )
     return dataset, dataset_statistics
 
 
@@ -593,12 +594,13 @@ def make_interleaved_dataset(
             train=train,
         )
         dataset = dataset.flatten(num_parallel_calls=threads)
-        dataset = apply_frame_transforms(dataset, **frame_transform_kwargs, train=train)
-        dataset = apply_per_dataset_frame_transforms(dataset, **dataset_frame_transform_kwargs)
+        # dataset = apply_frame_transforms(dataset, **frame_transform_kwargs, train=train)
+        if dataset_frame_transform_kwargs:
+            dataset = apply_per_dataset_frame_transforms(dataset, **dataset_frame_transform_kwargs)
         datasets.append(dataset)
 
     # Interleave at the Frame Level
-    dataset: dl.DLataset = dl.DLataset.sample_from_datasets(datasets, sample_weights, stop_on_empty_dataset=True) ## YY: must set stop_on_empty_dataset=True, otherwise we will keeep iterating over DROID after exhausting demo dataset
+    dataset: dl.DLataset = dl.DLataset.sample_from_datasets(datasets, sample_weights, stop_on_empty_dataset=False) ## YY: must set stop_on_empty_dataset=True, otherwise we will keeep iterating over DROID after exhausting demo dataset
 
     # Validation =>> fix a single shuffle buffer of data and cache it in RAM; prevents gradual memory increase!
     if not train:
@@ -610,14 +612,15 @@ def make_interleaved_dataset(
 
     # Apply Frame Transforms
     # overwatch.info("Applying frame transforms on dataset...")
-    # dataset = apply_frame_transforms(dataset, **frame_transform_kwargs, train=train)
+    if frame_transform_kwargs:
+        dataset = apply_frame_transforms(dataset, **frame_transform_kwargs, train=train)
 
     # [Contract] When training VLA Policies, we let the Collator handle Batching!
     if batch_size is not None:
         dataset = dataset.batch(batch_size)
 
     # Note =>> Seems to reduce memory usage without affecting speed?
-    dataset = dataset.with_ram_budget(1)
+    dataset = dataset.with_ram_budget(4)
 
     # Save for Later
     dataset.sample_weights = sample_weights

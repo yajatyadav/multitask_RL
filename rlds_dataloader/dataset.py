@@ -4,7 +4,8 @@ datasets.py
 Lightweight PyTorch Dataset Definition for wrapping RLDS TFDS Pipeline; just defines transform from RLDS default
 format to OpenVLA, IterableDataset shim.
 """
-
+import tensorflow as tf
+tf.config.set_visible_devices([], "GPU")
 
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -35,18 +36,33 @@ class RLDSDataset(IterableDataset):
         window_size: int,
         valid_episodes: List[int] = [],
         shuffle_buffer_size: int = 256_000,
+        prefetch_factor: int = 2,
         train: bool = True,
         infinite_dataset: bool = True,
         image_aug: bool = True,
         skip_norm_stats: bool = True,
+        load_images: bool = False,
+        load_proprio: bool = False,
+        load_language: bool = False,
+        normalize_images: bool = True,
     ) -> None:
         """Lightweight wrapper around RLDS TFDS Pipeline for use with PyTorch/OpenVLA Data Loaders."""
         self.data_root_dir = data_root_dir
         self.action_horizon = action_horizon
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.prefetch_factor = prefetch_factor
 
         action_proprio_normalization_type = None if skip_norm_stats else NormalizationType.NORMAL
+
+        camera_views = ("primary", "secondary", "wrist") if load_images else ()
+        frame_transform_kwargs= dict()
+        if load_images:
+            frame_transform_kwargs.update(dict(
+                resize_size={"image_primary": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION), "image_wrist": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION)},
+                num_parallel_calls=self.num_workers,                       # For CPU-intensive ops (decoding, resizing, etc.)
+                normalize_images=normalize_images,
+            ))
 
 
 
@@ -56,10 +72,10 @@ class RLDSDataset(IterableDataset):
             mixture_spec,
             action_key_list=action_key_list,
             binarize_gripper=binarize_gripper,
-            load_camera_views=("primary", "secondary", "wrist"),
+            load_camera_views=camera_views,
             load_depth=False,
-            load_proprio=True,
-            load_language=True,
+            load_proprio=load_proprio,
+            load_language=load_language,
             action_proprio_normalization_type=action_proprio_normalization_type,
         )
 
@@ -73,18 +89,13 @@ class RLDSDataset(IterableDataset):
                 skip_unlabeled=False,                                # Skip trajectories without language labels
                 goal_relabeling_strategy=None,                 # Goals are currently unused
             ),
-            frame_transform_kwargs=dict(
-                resize_size={"image_primary": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION), "image_wrist": (LIBERO_ENV_RESOLUTION, LIBERO_ENV_RESOLUTION)},
-                num_parallel_calls=self.num_workers,                       # For CPU-intensive ops (decoding, resizing, etc.)
-            ),
+            frame_transform_kwargs=frame_transform_kwargs,
             dataset_kwargs_list=per_dataset_kwargs,
             shuffle_buffer_size=shuffle_buffer_size,
             sample_weights=weights,
             balance_weights=balance_datasets,
-            # traj_transform_threads= self.num_workers * len(mixture_spec),
-            # traj_read_threads= WORKER_SCALE_FACTOR * len(mixture_spec),
-            traj_transform_threads=len(mixture_spec),
-            traj_read_threads=len(mixture_spec),
+            traj_transform_threads=2,
+            traj_read_threads=4,
             train=train,
             infinite_dataset=infinite_dataset,
         )
@@ -114,7 +125,8 @@ class RLDSDataset(IterableDataset):
         return make_interleaved_dataset(**rlds_config)
 
     def __iter__(self) -> Dict[str, Any]:
-        for rlds_batch in self.dataset.as_numpy_iterator():
+        data_iterator = self.dataset.iterator(prefetch=self.prefetch_factor)
+        for rlds_batch in data_iterator:
             yield rlds_batch
 
     def __len__(self) -> int:

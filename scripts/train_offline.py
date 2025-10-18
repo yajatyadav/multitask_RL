@@ -72,6 +72,7 @@ flags.DEFINE_boolean('tanh_squash', True, 'whether the actor squashes output act
 flags.DEFINE_boolean('state_dependent_std', True, 'whether the actor network also outputs multivariate gaussian STD per state')
 flags.DEFINE_boolean('const_std', True, 'whether we use const std of 1 for all actor output distributions. Importantly, if const_std=False, state_dependent_std, then we still learn a std shared among ALL states')
 flags.DEFINE_float('alpha', 10.0, 'the temperature param for AWR. alpha=0 means BC, and higher alpha leads us to more greedily picking higher-advantage actions')
+flags.DEFINE_float('expectile', 0.9, 'the expectile for IQL')
 flags.DEFINE_float('lr', 3e-4, 'constant learning rate that Adam uses for all networks')
 flags.DEFINE_string('encoder', '', 'must specify what encoder- controls if we are using simulator state, image + proprio, or something else')
 
@@ -86,7 +87,7 @@ agent_config = ml_collections.ConfigDict(
         actor_layer_norm=True,  # Whether to use layer normalization for the actor.
         discount=0.99,  # Discount factor.
         tau=0.005,  # Target network update rate.
-        expectile=0.9,  # IQL expectile.
+        # expectile=0.9,  # IQL expectile.
         actor_loss='awr',  # Actor loss type ('awr' or 'ddpgbc').
         # alpha=0.0,  # Temperature in AWR or BC coefficient in DDPG+BC. will be filled in main()
         # const_std=True,  # Whether to use constant standard deviation for the actor. # to be filled in later
@@ -111,6 +112,7 @@ def main(_):
     agent_config.update(
         lr=FLAGS.lr,
         alpha=FLAGS.alpha,
+        expectile=FLAGS.expectile,
         tanh_squash=FLAGS.tanh_squash,
         const_std=FLAGS.const_std,
         state_dependent_std=FLAGS.state_dependent_std,
@@ -132,13 +134,14 @@ def main(_):
         'balance_datasets': FLAGS.balance_datasets,
         'batch_size': FLAGS.batch_size,
         'num_workers': FLAGS.num_workers,
+        "prefetch_factor": 5,
         'seed': FLAGS.seed,
         'do_image_aug': FLAGS.do_image_aug,
         'binarize_gripper': True,
         'train': True,
         'text_encoder': FLAGS.text_encoder,
     }
-    train_dataloader = create_data_loader(train_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+    train_dataloader = create_data_loader(train_dataloader_config, normalize_images=True, normalize_batches=True, infinite_dataset=True) # not using OpenVLA dataloader normalization func
     data_iter = iter(train_dataloader)
 
     if FLAGS.do_validation:
@@ -149,13 +152,14 @@ def main(_):
             'balance_datasets': FLAGS.balance_datasets,
             'batch_size': FLAGS.batch_size,
             'num_workers': FLAGS.num_workers,
+            'prefetch_factor': 5,
             'seed': FLAGS.seed,
             'do_image_aug': False,
             'binarize_gripper': True,
             'train': False,
             'text_encoder': FLAGS.text_encoder,
         } 
-        val_dataloader = create_data_loader(val_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
+        val_dataloader = create_data_loader(val_dataloader_config, normalize_images=True, normalize_batches=True, infinite_dataset=True) # not using OpenVLA dataloader normalization func
         val_data_iter = iter(val_dataloader)
     else:
         val_dataloader = None
@@ -188,12 +192,12 @@ def main(_):
     console = Console()
     console.print(build_network_tree(network_params))
 
-    # training loop
+    # setup wandb and start training loop
+    setup_wandb(project='multitask_RL', group=FLAGS.run_group, name=exp_name, agent_config=agent_config_dict)
     expl_metrics = dict()
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1), smoothing=0.1, dynamic_ncols=True):
         batch = next(data_iter)
-        # agent, info = agent.update(batch)
-        info = {}
+        agent, info = agent.update(batch)
         # log few inputs to wandb: logs 0th transition in batch
         if i < FLAGS.num_input_output_to_log + 1:
             dict_to_log = get_sample_input_output_log_to_wandb(batch)
