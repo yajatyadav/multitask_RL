@@ -43,7 +43,7 @@ uv run scripts/train_offline.py \
 --pixel_observations=False \
 --offline_steps=1000000 \
 --log_interval=5000 \
---eval_interval=10 \
+--eval_interval=1000 \
 --save_interval=1000000 \
 --num_input_output_to_log=3 \
 \

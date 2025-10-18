@@ -28,7 +28,7 @@ from utils.flax_utils import restore_agent, save_agent
 from utils.logger import CsvLogger, get_exp_name, get_flag_dict, get_wandb_video, setup_wandb
 from utils.logger import build_network_tree
 from utils.logger import get_sample_input_output_log_to_wandb
-
+from utils.dataset_mixtures import dataset_mixtures
 from evaluation.eval_libero import evaluate, Args
 
 FLAGS = flags.FLAGS
@@ -48,12 +48,12 @@ flags.DEFINE_integer('offline_steps', 1_000_000, 'Number of offline steps.')
 flags.DEFINE_integer('log_interval', 100, 'Logging interval.')
 flags.DEFINE_integer('eval_interval', 100_000, 'Evaluation interval.')
 flags.DEFINE_integer('save_interval', 10_000_000, 'Saving interval.')
-flags.DEFINE_integer('num_input_output_to_log', 2, 'Number of transitions to log to wand, to serve as sanity-check.')
+flags.DEFINE_integer('num_input_output_to_log', 3, 'Number of transitions to log to wandb, to serve as sanity-check.')
 
 # eval flags
 flags.DEFINE_integer('eval_episodes', 20, 'Number of evaluation episodes.')
 flags.DEFINE_integer('num_steps_wait', 10, 'Number of steps to wait for objects to stabilize.')
-flags.DEFINE_integer('video_episodes', 0, 'Number of video episodes for each task.')
+flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_float('eval_temperature', 1.0, 'Temperature for the actor.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 # more eval flags - might have to refactor tihs
@@ -61,14 +61,14 @@ flags.DEFINE_string('task_suite_name', '', 'Task suite name.')
 flags.DEFINE_string('task_name', '', 'Task name.')
 
 # dataset flags
-flags.DEFINE_string('data_root_dir', None, 'Data root directory.')
-flags.DEFINE_string('train_dataset_mix', None, 'JSON string for the train dataset mix.')
-flags.DEFINE_boolean('do_validation', True, 'Whether to do validation.')
+flags.DEFINE_string('data_root_dir', '../datasets', 'Data root directory.')
+flags.DEFINE_string('train_dataset_mix_name', '', 'String that indexes into ap predefined list of dataset mixtures. string for the train dataset mix.')
+flags.DEFINE_boolean('do_validation', False, 'Whether to do validation.')
 flags.DEFINE_string('val_dataset_mix', None, 'JSON string for the val dataset mix. Must be provided if do_validation is True.')
 flags.DEFINE_boolean('balance_datasets', True, 'Whether to balance the datasets.') ## TODO(YY): NOTE- balance_datasets uses the size of the 'all' split, so sampling_weights are slightly off between train and val split
 flags.DEFINE_integer('batch_size', 256, 'Batch size.')
-flags.DEFINE_integer('num_workers', 16, 'Number of workers.')
-flags.DEFINE_boolean('do_image_aug', True, 'Whether to apply image augmentation.')
+flags.DEFINE_integer('num_workers', 8, 'Number of workers.')
+flags.DEFINE_boolean('do_image_aug', False, 'Whether to apply image augmentation.')
 flags.DEFINE_boolean('binarize_gripper', True, 'Whether to binarize the gripper into [-1, +1].')
 flags.DEFINE_string('text_encoder', 'one_hot_libero', 'Text encoder type. Used if loading language instructions.')
 
@@ -137,7 +137,8 @@ def main(_):
     np.random.seed(FLAGS.seed)
 
     ## setup dataloaders
-    train_dataset_mix = ratios_to_odds_mixture(json.loads(FLAGS.train_dataset_mix))
+    unnormalized_train_dataset_mix = dataset_mixtures[FLAGS.train_dataset_mix_name]
+    train_dataset_mix = ratios_to_odds_mixture(unnormalized_train_dataset_mix)
     train_dataloader_config = {
         'data_root_dir': FLAGS.data_root_dir,
         'dataset_mix': train_dataset_mix,
@@ -220,11 +221,12 @@ def main(_):
     console.print(build_network_tree(network_params))
 
     # expl_metrics = dict()
+    steps_to_log_inputs = list(range(0, 1000, 1000 // FLAGS.num_input_output_to_log))
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1), smoothing=0.1, dynamic_ncols=True):
         batch = next(data_iter)
         agent, info = agent.update(batch)
-        # log few inputs to wandb: logs 0th transition in batch
-        if i < FLAGS.num_input_output_to_log + 1:
+        # spaced out logging
+        if i in steps_to_log_inputs:
             dict_to_log = get_sample_input_output_log_to_wandb(batch)
             wandb.log(dict_to_log, step=i)
 
@@ -252,6 +254,7 @@ def main(_):
                 eval_use_images=FLAGS.pixel_observations, # set to False for state-based evals
                 seed=FLAGS.seed,
                 num_eval_episodes=FLAGS.eval_episodes if i > 1 else 5, # run 5 episodes for first time, as it's just a sanity check
+                num_video_episodes=FLAGS.video_episodes,
                 num_steps_wait=FLAGS.num_steps_wait,
                 video_frame_skip=FLAGS.video_frame_skip,
                 eval_temperature=FLAGS.eval_temperature,
