@@ -15,12 +15,11 @@ import jax
 from libero.libero import benchmark
 from libero.libero import get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
-from utils.data_utils import MuseEmbedding
+from utils.data_utils import get_language_encoder
 from utils.data_utils import normalize_libero_eval_obs_for_agent, unnormalize_action_mean_std, unnormalize_action_min_max
 
 from utils.data_utils import LIBERO_ENV_RESOLUTION
 LIBERO_DUMMY_ACTION = [0.0] * 6 + [-1.0]
-TEXT_ENCODER = MuseEmbedding
 
 @dataclass
 class Args:
@@ -32,6 +31,7 @@ class Args:
     task_suite_name: str = "libero_10"
     task_name: str = ""
     dataset_name: str = "" # used to fetch norm stats
+    text_encoder: str = "one_hot_libero"
 
 def supply_rng(f, rng=jax.random.PRNGKey(0)):
     """Helper function to split the random number generator key before each call to the function."""
@@ -160,6 +160,7 @@ def evaluate(agent, args: Args):
     # setup actor and env
     actor_fn = supply_rng(agent.sample_actions, rng=jax.random.PRNGKey(np.random.randint(0, 2**32)))
     env, max_steps, task_description, initial_states = setup_eval_env(args)
+    TEXT_ENCODER = get_language_encoder(args.text_encoder)
     task_embedding = TEXT_ENCODER.encode(task_description)
     trajs = []
     stats = defaultdict(list)

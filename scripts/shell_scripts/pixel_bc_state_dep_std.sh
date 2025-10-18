@@ -54,7 +54,7 @@ uv run scripts/train_offline.py \
 --do_validation=False \
 --balance_datasets=True \
 --batch_size=256 \
---num_workers=8 \
+--num_workers=24 \
 --do_image_aug=False \
 --binarize_gripper=True \
 \

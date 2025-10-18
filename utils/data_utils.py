@@ -1,6 +1,10 @@
 import numpy as np
 import os
 import json
+import sys
+# insert libero path
+repo_root_dir = os.getenv("MULTITASK_RL_REPO_ROOT_DIR", os.getcwd())
+sys.path.insert(0, os.path.join(repo_root_dir, "libero"))
 
 # used by the dataloader during training / in the eval script before feeding into the policy
 LIBERO_ENV_RESOLUTION = 128  # set this to resolution used to render training data
@@ -68,7 +72,7 @@ def unflatten_dict(d, sep='/'):
     return result
 
 
-# language encoder that encodes str into vector; used by the dataloader during training / in the eval script before feeding into the policy
+# language encoders that encodes str into vector; used by the dataloader during training / in the eval script before feeding into the policy
 import tensorflow_hub as hub
 import tensorflow_text
 MUSE_MODEL = hub.load("https://tfhub.dev/google/universal-sentence-encoder-multilingual/3")
@@ -76,6 +80,47 @@ class MuseEmbedding:
     @staticmethod
     def encode(strings):
         return MUSE_MODEL(strings).numpy()
+
+# setup one-hot encoder
+NUM_UNIQUE_LIBERO_TASKS = 112
+from libero.libero import benchmark
+libero_benchmark_dict = benchmark.get_benchmark_dict()
+all_libero_languages = set()
+benchmarks = sorted(["libero_spatial", "libero_object", "libero_goal", "libero_90", "libero_10"]) # sorted() to retain same order
+for benchmark_name in benchmarks:
+    benchmark = libero_benchmark_dict[benchmark_name]()
+    num_tasks = benchmark.get_num_tasks()
+    for i in range(num_tasks):
+        task = benchmark.get_task(i)
+        task_language = task.language
+        if task_language not in all_libero_languages:
+            all_libero_languages.add(task_language)
+        else:
+            pass
+            # print(f"Duplicate language: {task_language}, found in task {benchmark.get_task_names()[i]} of benchmark {benchmark_name}")
+# once set constructed, sort all keys alphabetically before assinging one-hot label, will ensure consistent ordering
+all_libero_languages = sorted(all_libero_languages)
+all_libero_languages = {language: i for i, language in enumerate(all_libero_languages)}
+assert len(all_libero_languages) == NUM_UNIQUE_LIBERO_TASKS, f"Expected {NUM_UNIQUE_LIBERO_TASKS} unique libero tasks, but found {len(all_libero_languages)}"
+
+class OneHotEmbedding_Libero:
+    @staticmethod
+    def encode(strings):
+        indices = [all_libero_languages[s] for s in strings]
+        return np.eye(NUM_UNIQUE_LIBERO_TASKS)[indices]
+
+
+
+def get_language_encoder(encoder_type: str):
+    if encoder_type == "muse":
+        return MuseEmbedding
+    elif encoder_type == "one_hot_libero":
+        return OneHotEmbedding_Libero
+    else:
+        raise ValueError(f"Invalid Text Encoder type: {encoder_type}")
+
+
+
 
 norm_stats_root_dir = os.path.join(os.getcwd(), 'dataset_stats')
 ALL_NORM_STATS = {}

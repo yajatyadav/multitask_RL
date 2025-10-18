@@ -103,16 +103,6 @@ class ImpalaEncoder(nn.Module):
 
         return out
 
-# Language Encoder
-# for JAX JIT convenience, it is easier to do this embedding when dataloading itself, and not waiting until the network is called
-# class MuseEmbedding:
-#     muse_model = tensorflow_hub.load("https://tfhub.dev/google/universal-sentence-encoder-multilingual/3")
-
-#     @staticmethod
-#     def encode(strings):
-#         embeddings = MuseEmbedding.muse_model(strings).numpy()
-#         return jnp.array(embeddings)
-
 # FiLM modulation of visual observations with language_embedding + proprioception
 class FiLM(nn.Module):
     @nn.compact
