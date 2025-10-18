@@ -226,8 +226,9 @@ def evaluate(agent, args: Args):
 
         add_to(stats, flatten(info))
         # trajs.append(traj)
-        renders.append(np.array(render, dtype=np.uint8))
-        # wrist_renders.append(np.array(wrist_render))
+        if episode_idx < args.num_video_episodes:
+            renders.append(np.array(render, dtype=np.uint8))
+            # wrist_renders.append(np.array(wrist_render))
     
     env.close()
     for k, v in stats.items():
