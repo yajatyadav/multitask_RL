@@ -8,18 +8,7 @@ import matplotlib.pyplot as plt
 import shutil
 import os
 from utils.data_utils import flatten_dict, unflatten_dict
-dataloader_config_template = {
-    "data_root_dir": "/raid/users/yajatyadav/datasets/raw_libero/raw_libero_RLDS/",
-    "dataset_mix": {},
-    "batch_size": 256,
-    "balance_datasets": True,
-    "num_workers": 16,
-    "seed": 42,
-    "do_image_aug": False,
-    "binarize_gripper": True,
-    "train": True,
-}
-
+import argparse
 
 def compute_stats(all_values):
     """Compute comprehensive statistics for collected values."""
@@ -187,6 +176,21 @@ def plot_distributions(key, all_values, stats, output_dir):
         print(f"  Skipping per-dimension plots (too many dimensions: {num_dims})")
 
 
+
+dataloader_config_template = {
+    "data_root_dir": "../datasets/",
+    "dataset_mix": {},
+    "batch_size": 256,
+    "balance_datasets": True,
+    "num_workers": 16,
+    "prefetch_factor": 4,
+    "seed": 42,
+    "do_image_aug": False,
+    "binarize_gripper": True,
+    "train": True,
+    "text_encoder": "one_hot_libero",
+}
+
 def main(args):
     dataset_name = args["dataset_name"]
     save_plots = args.get("save_plots", True)
@@ -196,7 +200,9 @@ def main(args):
     dataloader_config["dataset_mix"] = { dataset_name: 1.0 }
     dataloader = rlds_data_loader.create_data_loader(
         dataloader_config, 
-        skip_norm_stats=True,
+        load_images=True,
+        load_proprio=True,
+        load_language=True,
         infinite_dataset=False,
         normalize_batches=False, # this MUST BE FALSE FOR COMPUTING NORM STATS
     )
@@ -296,10 +302,13 @@ def main(args):
     
     return final_stats, all_data
 
-
 if __name__ == "__main__":
+    # pass in dataset_name as CLI arg
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset_name", type=str, required=True)
+    args = parser.parse_args()
     args = dict(
-        dataset_name="libero_90__black_bowl_on_plate_kitchen_scene1",
+        dataset_name=args.dataset_name,
         save_plots=True,
         keys=["actions", "observations/proprio", "observations/sim_state"],  # None = analyze all non-image keys, or specify: ["actions", "observations/proprio"]
     )

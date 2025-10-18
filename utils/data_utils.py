@@ -2,9 +2,7 @@ import numpy as np
 import os
 import json
 import sys
-# insert libero path
-repo_root_dir = os.getenv("MULTITASK_RL_REPO_ROOT_DIR", os.getcwd())
-sys.path.insert(0, os.path.join(repo_root_dir, "libero"))
+sys.path.insert(0, os.path.join(os.getcwd(), "libero"))
 
 # used by the dataloader during training / in the eval script before feeding into the policy
 LIBERO_ENV_RESOLUTION = 128  # set this to resolution used to render training data
@@ -72,7 +70,8 @@ def unflatten_dict(d, sep='/'):
     return result
 
 
-# language encoders that encodes str into vector; used by the dataloader during training / in the eval script before feeding into the policy
+
+# language encoder that encodes str into vector; used by the dataloader during training / in the eval script before feeding into the policy
 import tensorflow_hub as hub
 import tensorflow_text
 MUSE_MODEL = hub.load("https://tfhub.dev/google/universal-sentence-encoder-multilingual/3")
@@ -106,7 +105,12 @@ assert len(all_libero_languages) == NUM_UNIQUE_LIBERO_TASKS, f"Expected {NUM_UNI
 class OneHotEmbedding_Libero:
     @staticmethod
     def encode(strings):
-        indices = [all_libero_languages[s] for s in strings]
+        def standardize_string(s):
+            if isinstance(s, bytes):
+                s = s.decode("utf-8")
+            s = s.lower().replace("_", " ")
+            return s
+        indices = [all_libero_languages[standardize_string(s)] for s in strings]
         return np.eye(NUM_UNIQUE_LIBERO_TASKS)[indices]
 
 
@@ -145,12 +149,18 @@ ALL_NORM_STATS["old_libero_norm_stats"] = {
     },
 }
 
+logged_norm_stats = [False, False]
+
 # TODO(YY): commenting out image normalization for now- this is really killing the dataloader speed...maybe try to integrate into TFDS pipeline as a frame_transform?
 def normalize_libero_batch(batch, dataset_name: str):
+    if not logged_norm_stats[0]:
+        logged_norm_stats[0] = True
+        print(f"😂😂 TRAINING NORMALIZATION: Using norm stats for dataset {dataset_name}")
     norm_stats = ALL_NORM_STATS[dataset_name]
 
     # first, flatten the batch dict
     batch = flatten_dict(batch, sep="/")
+
     # normalize proprio and sim state using mean/std, if they have been loaded in (at least one of them must be loaded in)
     if "observations/proprio" in batch:
         proprio = batch["observations/proprio"]
@@ -184,10 +194,10 @@ def normalize_libero_batch(batch, dataset_name: str):
     return batch
 
 def normalize_libero_eval_obs_for_agent(obs, dataset_name: str):
+    if not logged_norm_stats[1]:
+        logged_norm_stats[1] = True
+        print(f"😂😂 EVAL NORMALIZATION: Using norm stats for dataset {dataset_name}")
     norm_stats = ALL_NORM_STATS[dataset_name]
-    
-    proprio = obs["proprio"]
-    sim_state = obs["sim_state"]
 
     if "proprio" in obs:
         proprio = obs["proprio"]
@@ -197,9 +207,15 @@ def normalize_libero_eval_obs_for_agent(obs, dataset_name: str):
         sim_state = obs["sim_state"]
         sim_state = normalize_sim_state(sim_state, norm_stats)
         obs["sim_state"] = sim_state
+    if "image_primary" in obs:
+        image_primary = obs["image_primary"]
+        image_primary = normalize_image(image_primary, norm_stats)
+        obs["image_primary"] = image_primary
+    if "image_wrist" in obs:
+        image_wrist = obs["image_wrist"]
+        image_wrist = normalize_image(image_wrist, norm_stats)
+        obs["image_wrist"] = image_wrist
 
-    # image_primary = normalize_image(image_primary) # TODO(YY): uncomment once switching to pixel-based observations
-    # image_wrist = normalize_image(image_wrist)
     return obs
 
 
@@ -242,24 +258,19 @@ def normalize_action_min_max(action, norm_stats):
     return action
 
 
-# normalize actions into (-1, 1), based on q5 and q95 from norm stats
-def normalize_action_q5_q95(action, norm_stats):
-    pass
-
-
 # binarization is handled by the dataloader and the eval script
-def normalize_action_mean_std(action, norm_stats):
-    import pdb; pdb.set_trace()
-    assert action.dtype == np.float32
-    # same idea, except only normalize first 6 dims
-    action = np.array(action)
-    action_norm_stats = norm_stats["actions"]
-    mean, std = action_norm_stats["mean"], action_norm_stats["std"]
-    mean, std = np.array(mean), np.array(std)
-    action[:, :6] = (action[:, :6] - mean[:6]) / (std[:6] + 1e-8)
-    # b/c we're using tanh, add/subtract a small epsilon to the last gripper dim based on the sign, so it is not exactly -1 or +1
-    action[:, 6] = action[:, 6] * (1 - 1e-5)
-    return action
+# def normalize_action_mean_std(action, norm_stats):
+#     import pdb; pdb.set_trace()
+#     assert action.dtype == np.float32
+#     # same idea, except only normalize first 6 dims
+#     action = np.array(action)
+#     action_norm_stats = norm_stats["actions"]
+#     mean, std = action_norm_stats["mean"], action_norm_stats["std"]
+#     mean, std = np.array(mean), np.array(std)
+#     action[:, :6] = (action[:, :6] - mean[:6]) / (std[:6] + 1e-8)
+#     # b/c we're using tanh, add/subtract a small epsilon to the last gripper dim based on the sign, so it is not exactly -1 or +1
+#     action[:, 6] = action[:, 6] * (1 - 1e-5)
+#     return action
 
 
 def unnormalize_action_min_max(action, dataset_name: str):
@@ -285,7 +296,6 @@ def unnormalize_action_mean_std(action, dataset_name: str):
     return action
 
 
-import numpy as np
 
 # Create lookup table once (at startup)
 # NORMALIZE_LUT = (np.arange(256, dtype=np.float32) / 255.0 * 2.0 - 1.0)

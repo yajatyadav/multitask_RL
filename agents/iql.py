@@ -241,23 +241,23 @@ class IQLAgent(flax.struct.PyTreeNode):
 
 
 def get_config():
-    # config = ml_collections.ConfigDict(
-    #     dict(
-    #         agent_name='iql',  # Agent name.
-    #         lr=3e-4,  # Learning rate.
-    #         batch_size=256,  # Batch size.
-    #         actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.
-    #         value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
-    #         layer_norm=True,  # Whether to use layer normalization.
-    #         actor_layer_norm=False,  # Whether to use layer normalization for the actor.
-    #         discount=0.99,  # Discount factor.
-    #         tau=0.005,  # Target network update rate.
-    #         expectile=0.9,  # IQL expectile.
-    #         actor_loss='awr',  # Actor loss type ('awr' or 'ddpgbc').
-    #         alpha=10.0,  # Temperature in AWR or BC coefficient in DDPG+BC.
-    #         const_std=True,  # Whether to use constant standard deviation for the actor.
-    #         encoder=ml_collections.config_dict.placeholder(str),  # Visual encoder name (None, 'impala_small', etc.).
-    #     )
-    # )
-    config = ml_collections.ConfigDict({})
+    config = ml_collections.ConfigDict(
+        dict(
+            agent_name='iql',  # Agent name.
+            lr=3e-4,  # Learning rate.
+            actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.
+            value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
+            layer_norm=True,  # Whether to use layer normalization.
+            actor_layer_norm=True,  # Whether to use layer normalization for the actor.
+            discount=0.99,  # Discount factor.
+            tau=0.005,  # Target network update rate.
+            expectile=0.9,  # IQL expectile.
+            actor_loss='awr',  # Actor loss type ('awr' or 'ddpgbc').
+            alpha=10.0,  # Temperature in AWR or BC coefficient in DDPG+BC.
+            const_std=False,  # Whether to use constant standard deviation for the actor.
+            state_dependent_std=False,  # Whether to use state-dependent standard deviation for the actor.
+            tanh_squash=True,  # Whether to use tanh squashing for the actor.
+            encoder='state_space_encoder',  # Visual encoder name (None, 'impala_small', etc.).
+        )
+    )
     return config

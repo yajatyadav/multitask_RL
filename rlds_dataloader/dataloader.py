@@ -10,7 +10,7 @@ from utils.data_utils import get_language_encoder
 class RLDSDataLoader():
     def __init__(self, config: dict, dataset: IterableDataset, load_images: bool, load_proprio: bool, load_language: bool, normalize_batches: bool = True):
         self.dataset = dataset
-        self.text_encoder = get_language_encoder(config["text_encoder"])
+        self.text_encoder = get_language_encoder(config["text_encoder"]) if load_language else None
         self.config = config
         self.normalize_batches = normalize_batches
         self.load_images = load_images
@@ -83,7 +83,7 @@ def create_data_loader(
         prefetch_factor=config["prefetch_factor"],
         action_horizon = 1,
         window_size = 2,
-        shuffle_buffer_size = 20_000,
+        shuffle_buffer_size = 50_000,
         skip_norm_stats = True,
         train = config["train"],
         image_aug = config["do_image_aug"],

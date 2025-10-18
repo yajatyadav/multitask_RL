@@ -17,6 +17,7 @@ dataloader_config = {
     "do_image_aug": False, # check file for sequence: dict(
     "binarize_gripper": True, # binarizes to 0 and 1 (by scanning for transitions), and then normalizes to -1 and 1
     "train": True, # for picking the right split
+    "text_encoder": "one_hot_libero",
 }
 
 

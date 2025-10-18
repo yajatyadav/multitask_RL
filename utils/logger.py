@@ -75,7 +75,7 @@ def setup_wandb(
     tags = [group] if group is not None else None
     flag_dict = get_flag_dict() if log_flags else None
 
-    config = {f"flags/{k}": v for k, v in flag_dict.items()}
+    config = {k: v for k, v in flag_dict.items()}
     config.update({f'agent_config/{k}': v for k, v in agent_config.items()})
 
     init_kwargs = dict(
@@ -154,19 +154,22 @@ def get_wandb_video(renders=None, n_cols=None, fps=15):
     return wandb.Video(renders, fps=fps, format='mp4')
 
 
-def get_sample_input_output_log_to_wandb(batch):
+def get_sample_input_output_log_to_wandb(batch: dict):
     """Log sample input and output to wandb."""
-    def log_obs(obs, obs_type):
-        image_primary, image_wrist = obs["image_primary"], obs["image_wrist"]
-        sim_state = obs["sim_state"]
-        proprio = obs["proprio"]
-        return {
-            f"{obs_type}/image_primary": wandb.Image(image_primary[0]),
-            f"{obs_type}/image_wrist": wandb.Image(image_wrist[0]),
-            f"{obs_type}/proprio": wandb.Table(columns=[f"{obs_type}_proprio_{i}" for i in range(len(proprio[0]))], 
-            data=[proprio[0].tolist()]),
-            f"{obs_type}/sim_state": wandb.Table(columns=[f"{obs_type}_sim_state_{i}" for i in range(len(sim_state[0]))], data=[sim_state[0].tolist()]),
-        }
+    def log_obs(obs, obs_type: str):
+        obs_log_dict = {}
+        if "image_primary" in obs:
+            obs_log_dict[f"{obs_type}/image_primary"] = wandb.Image(obs["image_primary"][0])
+        if "image_wrist" in obs:
+            obs_log_dict[f"{obs_type}/image_wrist"] = wandb.Image(obs["image_wrist"][0])
+        if "proprio" in obs:
+            obs_log_dict[f"{obs_type}/proprio"] = wandb.Table(columns=[f"{obs_type}_proprio_{i}" for i in range(len(obs["proprio"][0]))], data=[obs["proprio"][0].tolist()])
+        if "sim_state" in obs:
+            obs_log_dict[f"{obs_type}/sim_state"] = wandb.Table(columns=[f"{obs_type}_sim_state_{i}" for i in range(len(obs["sim_state"][0]))], data=[obs["sim_state"][0].tolist()])
+        if "task_embedding" in obs:
+            obs_log_dict[f"{obs_type}/task_embedding"] = wandb.Table(columns=[f"{obs_type}_task_embedding_{i}" for i in range(len(obs["task_embedding"][0]))], data=[obs["task_embedding"][0].tolist()])
+        return obs_log_dict
+    
     dict_to_log = {}
     dict_to_log.update(log_obs(batch["observations"], "observations"))
     dict_to_log.update(log_obs(batch["next_observations"], "next_observations"))
