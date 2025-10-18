@@ -26,7 +26,7 @@ class Args:
     eval_use_images: bool = False # set to False for state-based evals
     seed: int = 0
     num_eval_episodes: int = 20
-    num_video_epsiodes: int = 5 # render only the first 5 episodes
+    num_video_episodes: int = 5 # render only the first 5 episodes
     num_steps_wait: int = 10
     video_frame_skip: int = 3
     eval_temperature: float = 1.0
@@ -196,7 +196,7 @@ def evaluate(agent, args: Args):
         
         # start the main eval loop per episode
         for t in tqdm.trange(max_steps, desc=f"Episode {episode_idx} Progress ", position=1, leave=False):  
-            if (episode_idx < args.num_video_epsiodes) and (t % args.video_frame_skip == 0 or done):
+            if (episode_idx < args.num_video_episodes) and (t % args.video_frame_skip == 0 or done):
                 render.append(np.array(obs["agentview_image"][::-1, ::-1], dtype=np.uint8)) # need to copy since obs images get changed in-place later on during normalization
                 # wrist_render.append(obs["robot0_eye_in_hand_image"][::-1, ::-1])
 

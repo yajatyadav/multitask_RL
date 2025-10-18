@@ -8,4 +8,4 @@ while (( "$#" )); do
   a="$a '$1'"
   shift
 done
-srun -K0 bash -c "./run_supp.sh $a"
+srun -K0 bash -c "scripts/automation/run_supp.sh $a"

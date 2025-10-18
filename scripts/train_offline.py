@@ -239,7 +239,7 @@ def main(_):
                 train_metrics.update({f'validation/{k}': v for k, v in val_info.items()})
             train_metrics['time/epoch_time'] = (time.time() - last_time) / FLAGS.log_interval
             train_metrics['time/total_time'] = time.time() - first_time
-            train_metrics.update(expl_metrics)
+            # train_metrics.update(expl_metrics)
             last_time = time.time()
             if FLAGS.use_wandb:
                 wandb.log(train_metrics, step=i)
