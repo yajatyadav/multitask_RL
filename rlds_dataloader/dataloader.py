@@ -8,14 +8,16 @@ from utils.data_utils import MuseEmbedding
 
 
 class RLDSDataLoader():
-    def __init__(self, config: dict, dataset: IterableDataset, normalize_batches: bool = True):
-            self.dataset = dataset
-            self.text_encoder = MuseEmbedding
-            self.config = config
-            self.normalize_batches = normalize_batches
+    def __init__(self, config: dict, dataset: IterableDataset, load_images: bool, load_proprio: bool, load_language: bool, normalize_batches: bool = True):
+        self.dataset = dataset
+        self.text_encoder = MuseEmbedding
+        self.config = config
+        self.normalize_batches = normalize_batches
+        self.load_images = load_images
+        self.load_proprio = load_proprio
+        self.load_language = load_language
     ## fix up the batch in a fromat downstream agents can more easily use
     def postprocess_batch(self, batch):
-        return batch
         task = batch["task"]
         action = batch["action"]
         reward = batch["reward"]
@@ -24,8 +26,9 @@ class RLDSDataLoader():
 
         observation = tf.nest.map_structure(lambda x: x[:, 0], curr_and_next_observation)
         next_observation = tf.nest.map_structure(lambda x: x[:, 1], curr_and_next_observation)      
-        observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
-        next_observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])  
+        if self.load_language:
+            observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
+            next_observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])  
 
         # squeeze out the window dimension from actions
         action = np.squeeze(action, axis=1)   
@@ -90,6 +93,6 @@ def create_data_loader(
         load_language=load_language,
         normalize_images=normalize_images,
     )
-    dataloader = RLDSDataLoader(config, dataset, normalize_batches=normalize_batches)
+    dataloader = RLDSDataLoader(config, dataset, load_images=load_images, load_proprio=load_proprio, load_language=load_language, normalize_batches=normalize_batches)
 
     return dataloader

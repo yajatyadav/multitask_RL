@@ -106,47 +106,32 @@ def normalize_libero_batch(batch, dataset_name: str):
 
     # first, flatten the batch dict
     batch = flatten_dict(batch, sep="/")
-
-    # all obs keys
-    image_primary = batch["observations/image_primary"]
-    image_wrist = batch["observations/image_wrist"]
-    proprio = batch["observations/proprio"]
-    sim_state = batch["observations/sim_state"]
-
-    # all next obs keys
-    next_image_primary = batch["next_observations/image_primary"]
-    next_image_wrist = batch["next_observations/image_wrist"]
-    next_proprio = batch["next_observations/proprio"]
-    next_sim_state = batch["next_observations/sim_state"]
-
-    action = batch["actions"]
-
-    ## image normalization no longer needed- handled by applying an obs_transform in RLDS
-
-    # image_primary = normalize_image(image_primary)
-    # image_wrist = normalize_image(image_wrist)
-    proprio = normalize_proprio(proprio, norm_stats)
-
-    # next_image_primary = normalize_image(next_image_primary)
-    # next_image_wrist = normalize_image(next_image_wrist)
-    next_proprio = normalize_proprio(next_proprio, norm_stats)
-
-    if "observations/sim_state" in norm_stats:
-        sim_state = normalize_sim_state(sim_state, norm_stats)
-        next_sim_state = normalize_sim_state(next_sim_state, norm_stats)
+    # normalize proprio and sim state using mean/std, if they have been loaded in (at least one of them must be loaded in)
+    if "observations/proprio" in batch:
+        proprio = batch["observations/proprio"]
+        proprio = normalize_proprio(proprio, norm_stats)
+        batch["observations/proprio"] = proprio
     
+    if "observations/sim_state" in batch:
+        sim_state = batch["observations/sim_state"]
+        sim_state = normalize_sim_state(sim_state, norm_stats)
+        batch["observations/sim_state"] = sim_state
 
+    
+    if "next_observations/proprio" in batch:
+        next_proprio = batch["next_observations/proprio"]
+        next_proprio = normalize_proprio(next_proprio, norm_stats)
+        batch["next_observations/proprio"] = next_proprio
+
+        
+    if "next_observations/sim_state" in batch:
+        next_sim_state = batch["next_observations/sim_state"]
+        next_sim_state = normalize_sim_state(next_sim_state, norm_stats)
+        batch["next_observations/sim_state"] = next_sim_state
+
+    # normalize actions using min/max
+    action = batch["actions"]
     action = normalize_action_min_max(action, norm_stats)
-
-    # re-assign the normalized values back to the batch
-    batch["observations/image_primary"] = image_primary
-    batch["observations/image_wrist"] = image_wrist
-    batch["observations/proprio"] = proprio
-    batch["observations/sim_state"] = sim_state
-    batch["next_observations/image_primary"] = next_image_primary
-    batch["next_observations/image_wrist"] = next_image_wrist
-    batch["next_observations/proprio"] = next_proprio
-    batch["next_observations/sim_state"] = next_sim_state
     batch["actions"] = action
 
     # unflatten the batch
@@ -156,21 +141,20 @@ def normalize_libero_batch(batch, dataset_name: str):
 def normalize_libero_eval_obs_for_agent(obs, dataset_name: str):
     norm_stats = ALL_NORM_STATS[dataset_name]
     
-    image_primary = obs["image_primary"]
-    image_wrist = obs["image_wrist"]
     proprio = obs["proprio"]
     sim_state = obs["sim_state"]
 
-    # image_primary = normalize_image(image_primary) # TODO(YY): uncomment once training images are ALSO normalized
-    # image_wrist = normalize_image(image_wrist)
-    proprio = normalize_proprio(proprio, norm_stats)
-    if "observations/sim_state" in norm_stats:
+    if "proprio" in obs:
+        proprio = obs["proprio"]
+        proprio = normalize_proprio(proprio, norm_stats)
+        obs["proprio"] = proprio
+    if "sim_state" in obs:
+        sim_state = obs["sim_state"]
         sim_state = normalize_sim_state(sim_state, norm_stats)
+        obs["sim_state"] = sim_state
 
-    obs["image_primary"] = image_primary
-    obs["image_wrist"] = image_wrist
-    obs["proprio"] = proprio
-    obs["sim_state"] = sim_state
+    # image_primary = normalize_image(image_primary) # TODO(YY): uncomment once switching to pixel-based observations
+    # image_wrist = normalize_image(image_wrist)
     return obs
 
 
