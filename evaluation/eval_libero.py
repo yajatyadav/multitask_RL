@@ -197,7 +197,7 @@ def evaluate(agent, args: Args):
         # start the main eval loop per episode
         for t in tqdm.trange(max_steps, desc=f"Episode {episode_idx} Progress ", position=1, leave=False):  
             if (episode_idx < args.num_video_episodes) and (t % args.video_frame_skip == 0 or done):
-                render.append(np.array(obs["agentview_image"][::-1, ::-1], dtype=np.uint8)) # need to copy since obs images get changed in-place later on during normalization
+                render.append(np.ascontiguousarray(obs["agentview_image"][::-1, ::-1], dtype=np.uint8)) # need to copy since obs images get changed in-place later on during normalization
                 # wrist_render.append(obs["robot0_eye_in_hand_image"][::-1, ::-1])
 
             # format input/output from actor
@@ -226,7 +226,7 @@ def evaluate(agent, args: Args):
 
         add_to(stats, flatten(info))
         # trajs.append(traj)
-        renders.append(np.array(render))
+        renders.append(np.array(render, dtype=np.uint8))
         # wrist_renders.append(np.array(wrist_render))
     
     env.close()
