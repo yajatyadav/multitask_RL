@@ -4,13 +4,13 @@ import tensorflow as tf
 
 from rlds_dataloader.dataset import RLDSDataset
 from utils.data_utils import normalize_libero_batch
-from utils.data_utils import MuseEmbedding
+from utils.data_utils import get_language_encoder
 
 
 class RLDSDataLoader():
     def __init__(self, config: dict, dataset: IterableDataset, normalize_batches: bool = True):
             self.dataset = dataset
-            self.text_encoder = MuseEmbedding
+            self.text_encoder = get_language_encoder(config["text_encoder"])
             self.config = config
             self.normalize_batches = normalize_batches
     

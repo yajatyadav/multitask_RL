@@ -30,6 +30,7 @@ from evaluation.eval_libero import evaluate, Args
 FLAGS = flags.FLAGS
 
 # housekeeping flags
+flags.DEFINE_boolean('use_wandb', True, 'Whether to use wandb for logging.')
 flags.DEFINE_string('run_group', 'Debug', 'Run group.')
 flags.DEFINE_string('exp_name_prefix', '', 'Prefix for the experiment name in Wandb, this can be used to group experiments.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
@@ -43,6 +44,7 @@ flags.DEFINE_integer('log_interval', 100, 'Logging interval.')
 flags.DEFINE_integer('eval_interval', 100_000, 'Evaluation interval.')
 flags.DEFINE_integer('save_interval', 10_000_000, 'Saving interval.')
 flags.DEFINE_integer('num_input_output_to_log', 2, 'Number of transitions to log to wand, to serve as sanity-check.')
+flags.DEFINE_string('text_encoder', 'one_hot_libero', 'Text encoder type.')
 
 # eval flags
 flags.DEFINE_integer('eval_episodes', 20, 'Number of evaluation episodes.')
@@ -96,10 +98,11 @@ agent_config = ml_collections.ConfigDict(
 def main(_):
     # setup wandb
     exp_name = FLAGS.exp_name_prefix + get_exp_name(FLAGS.seed)
-    setup_wandb(project='multitask_RL', group=FLAGS.run_group, name=exp_name)
+    if FLAGS.use_wandb:
+        setup_wandb(project='multitask_RL', group=FLAGS.run_group, name=exp_name)
 
     # setup save dir
-    FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, exp_name)
+    FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project if FLAGS.use_wandb else 'none', FLAGS.run_group, exp_name)
     os.makedirs(FLAGS.save_dir, exist_ok=True)
     flag_dict = get_flag_dict()
     with open(os.path.join(FLAGS.save_dir, 'flags.json'), 'w') as f:
@@ -132,7 +135,8 @@ def main(_):
         'seed': FLAGS.seed,
         'do_image_aug': FLAGS.do_image_aug,
         'binarize_gripper': True,
-        'train': True
+        'train': True,
+        'text_encoder': FLAGS.text_encoder,
     }
     train_dataloader = create_data_loader(train_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
     data_iter = iter(train_dataloader)
@@ -148,7 +152,8 @@ def main(_):
             'seed': FLAGS.seed,
             'do_image_aug': False,
             'binarize_gripper': True,
-            'train': False
+            'train': False,
+            'text_encoder': FLAGS.text_encoder,
         } 
         val_dataloader = create_data_loader(val_dataloader_config, skip_norm_stats=True) # not using OpenVLA dataloader normalization func
         val_data_iter = iter(val_dataloader)
@@ -221,6 +226,7 @@ def main(_):
                 eval_temperature=FLAGS.eval_temperature,
                 task_suite_name=FLAGS.task_suite_name,
                 task_name=FLAGS.task_name,
+                text_encoder=FLAGS.text_encoder,
                 dataset_name=sorted(train_dataset_mix.keys())[0], # take the first key as the dataset name, used for normalizing eval-time observations
             )
 
