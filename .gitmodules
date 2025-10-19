@@ -1,3 +1,7 @@
 [submodule "libero"]
 	path = libero
 	url = git@github.com:yajatyadav/LIBERO.git
+[submodule "openpi_multitaskRL"]
+	path = openpi_multitaskRL
+	url = git@github.com:yajatyadav/openpi_finetune.git
+	branch = multitaskRL_openpi
