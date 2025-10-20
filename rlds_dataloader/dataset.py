@@ -95,7 +95,8 @@ class RLDSDataset(IterableDataset):
             sample_weights=weights,
             balance_weights=balance_datasets,
             traj_transform_threads=self.num_workers * len(per_dataset_kwargs),
-            traj_read_threads=self.num_workers * len(per_dataset_kwargs),
+            # traj_read_threads=self.num_workers * len(per_dataset_kwargs),
+            traj_read_threads=1,
             train=train,
             infinite_dataset=infinite_dataset,
         )

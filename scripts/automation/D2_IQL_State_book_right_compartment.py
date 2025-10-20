@@ -4,11 +4,12 @@ import numpy as np
 def main():
     num_job_group = 1
     sh_command = 'scripts/automation/run.sh'
-    pre_sbatch_command = 'MUJOCO_GL=egl WANDB__SERVICE_WAIT=86400 XLA_PYTHON_CLIENT_PREALLOCATE=false OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 '
+    wandb_env_variables = 'WANDB_SERVICE_WAIT=86400 WANDB_NETWORK_TIMEOUT=600 WANDB_FILE_TRANSFER_TIMEOUT=1200 WANDB_INIT_TIMEOUT=300 WANDB_HTTP_TIMEOUT=600 WANDB_RETRY_ATTEMPTS=15 WANDB_RETRY_WAIT_MIN=5 WANDB_RETRY_WAIT_MAX=120 '
+    pre_sbatch_command = f'{wandb_env_variables} MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 '
     num_groups = 4
     num_cpus = 1
     qos = 'high'
-    sbatch_command = f'-A co_rail -p savio4_gpu --gres=gpu:A5000:1 -N 1 -n {num_groups} -c {num_cpus} --qos=rail_gpu4_{qos} -t 24:00:00 --mem=60G --requeue '
+    sbatch_command = f'-A co_rail -p savio4_gpu --gres=gpu:A5000:1 -N 1 -n {num_groups} -c {num_cpus} --qos=rail_gpu4_{qos} -t 12:00:00 --mem=60G --requeue '
     python_command = 'uv run scripts/train_offline.py '
 
     run_group = os.path.splitext(os.path.basename(__file__))[0]

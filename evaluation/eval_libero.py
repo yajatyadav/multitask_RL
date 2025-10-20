@@ -4,6 +4,7 @@ repo_root_dir = os.getenv("MULTITASK_RL_REPO_ROOT_DIR", os.getcwd())
 sys.path.insert(0, os.path.join(repo_root_dir, "libero"))
 
 import logging
+import copy
 import math
 import pathlib
 import numpy as np
@@ -11,6 +12,8 @@ import tqdm
 from dataclasses import dataclass
 from collections import defaultdict
 import jax
+
+from openpi_client import image_tools
 
 from libero.libero import benchmark
 from libero.libero import get_libero_path
@@ -23,7 +26,8 @@ LIBERO_DUMMY_ACTION = [0.0] * 6 + [-1.0]
 
 @dataclass
 class Args:
-    eval_use_images: bool = False # set to False for state-based evals
+    eval_use_images: bool # set to False for state-based evals
+    eval_with_pi0: bool # set to True to use pi0 with best-of-N sampling actions
     seed: int = 0
     num_eval_episodes: int = 20
     num_video_episodes: int = 5 # render only the first 5 episodes
@@ -113,7 +117,7 @@ def setup_eval_env(args: Args):
 
 
 
-def format_libero_obs_for_agent(obs, task_embedding, sim_state, dataset_name, eval_use_images: bool = False):
+def format_libero_obs_for_agent(obs, prompt, task_embedding, sim_state, dataset_name, eval_use_images: bool = False):
     
     # construct and normalize proprio
     proprio = np.concatenate((obs["robot0_eef_pos"],
@@ -128,6 +132,7 @@ def format_libero_obs_for_agent(obs, task_embedding, sim_state, dataset_name, ev
             'task_embedding': task_embedding[np.newaxis, :],
             'proprio': proprio[np.newaxis, :],
             'sim_state': sim_state[np.newaxis, :],
+            # 'prompt': prompt[np.newaxis, :],
     }
     if eval_use_images:
         # flip image horizontally and normalize into [-1, 1]
@@ -140,6 +145,29 @@ def format_libero_obs_for_agent(obs, task_embedding, sim_state, dataset_name, ev
         
     obs = normalize_libero_eval_obs_for_agent(obs_to_normalize, dataset_name=dataset_name)
     return obs
+
+def format_libero_obs_for_pi0_obs(obs, task_description):
+    img = np.ascontiguousarray(obs["agentview_image"][::-1, ::-1])
+    wrist_img = np.ascontiguousarray(obs["robot0_eye_in_hand_image"][::-1, ::-1])
+    img = image_tools.convert_to_uint8(
+        image_tools.resize_with_pad(img, 224, 224)
+    )
+    wrist_img = image_tools.convert_to_uint8(
+        image_tools.resize_with_pad(wrist_img, 224, 224)
+    )    
+    obs_pi_zero = {
+                    "observation/image": img,
+                    "observation/wrist_image": wrist_img,
+                    "observation/state": np.concatenate(
+                        (
+                            obs["robot0_eef_pos"],
+                            _quat2axisangle(obs["robot0_eef_quat"]),
+                            obs["robot0_gripper_qpos"],
+                        )
+                    ),
+                    "prompt": str(task_description),
+                }
+    return obs_pi_zero
 
 def format_agent_action_for_libero(action, dataset_name, is_gripper_closed, num_consecutive_gripper_change_actions, STICKY_GRIPPER_NUM_STEPS=1):
     # first, unnormalize + clip the non-gripper actions
@@ -164,7 +192,7 @@ def format_agent_action_for_libero(action, dataset_name, is_gripper_closed, num_
 
 def evaluate(agent, args: Args):
     # setup actor and env
-    actor_fn = jax.jit(supply_rng(agent.sample_actions, rng=jax.random.PRNGKey(np.random.randint(0, 2**32))))
+    actor_fn = supply_rng(agent.sample_actions, rng=jax.random.PRNGKey(np.random.randint(0, 2**32)))
     env, max_steps, task_description, initial_states = setup_eval_env(args)
     TEXT_ENCODER = get_language_encoder(args.text_encoder)
     task_embedding = TEXT_ENCODER.encode([task_description]) # putting in list to add a batch dimension
@@ -198,16 +226,28 @@ def evaluate(agent, args: Args):
         for t in tqdm.trange(max_steps, desc=f"Episode {episode_idx} Progress ", position=1, leave=False):  
             if (episode_idx < args.num_video_episodes) and (t % args.video_frame_skip == 0 or done):
                 render.append(np.ascontiguousarray(obs["agentview_image"][::-1, ::-1], dtype=np.uint8)) # need to copy since obs images get changed in-place later on during normalization
-                # wrist_render.append(obs["robot0_eye_in_hand_image"][::-1, ::-1])
+                # wrist_ren der.append(obs["robot0_eye_in_hand_image"][::-1, ::-1])
 
-            # format input/output from actor
-            obs_for_actor = format_libero_obs_for_agent(obs, task_embedding, sim_state, args.dataset_name, args.eval_use_images)
-            action = actor_fn(observations=obs_for_actor, temperature=args.eval_temperature)
+            # format input/output for pi0
+            if args.eval_with_pi0:
+                pi0_obs = copy.deepcopy(obs) # take deepcopy of raw observation to feed into pi0 (pi0 expects completely raw obs)
+                pi0_obs = format_libero_obs_for_pi0_obs(pi0_obs, task_description)
+            
+            # format input/output for value networks. This format_fn might modify the obs IN PLACE!
+            obs = format_libero_obs_for_agent(obs, task_description, task_embedding, sim_state, args.dataset_name, args.eval_use_images)
+
+            if args.eval_with_pi0:
+                action, sampling_info = actor_fn(value_obs=obs, pi0_obs=pi0_obs, temperature=args.eval_temperature)
+            else:
+                action = actor_fn(observations=obs, temperature=args.eval_temperature)
+                sampling_info = {}
+            
             action, is_gripper_closed, num_consecutive_gripper_change_actions = format_agent_action_for_libero(action, args.dataset_name, is_gripper_closed, num_consecutive_gripper_change_actions)
             # take action in environment
             next_obs, reward, done, info = env.step(action)
             sim_state = env.get_sim_state()
             info['success'] = float(1 if done else 0)
+            info.update(sampling_info)
 
             # transition = dict(
             #     observation=obs,

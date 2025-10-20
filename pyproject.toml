@@ -13,56 +13,84 @@ license = { file = "LICENSE" }
 dependencies = [
     # LIBERO requirements (adjusted for Python 3.11 compatibility)
     "hydra-core>=1.2.0",
-    "numpy>=1.26.4",
-    "wandb",
+    "numpy>=1.22.4,<2.0.0",  # Match openpi constraint
+    "wandb>=0.19.1",
     "easydict==1.9",
-    "opencv-python>=4.6.0.66",
-    "einops>=0.4.1",
+    "opencv-python>=4.10.0.84",
+    "einops>=0.8.0",
     "thop>=0.1.1",
-    "robosuite==1.4.0",  # Pin this - LIBERO is sensitive to robosuite version
-    "bddl==1.0.1",  # Pin this - LIBERO-specific
+    "robosuite==1.4.0",
+    "bddl==1.0.1",
     "future>=0.18.2",
-    "matplotlib",
+    "matplotlib>=3.10.0",
     "cloudpickle>=2.1.0",
     "gymnasium",
     
-    # PyTorch - will be installed from CUDA wheel
-    "torch>=2.5.1",
-    "torchvision>=0.21.0",
+    # PyTorch - compatible version (torch 2.7.1 doesn't exist yet)
+    "torch>=2.5.0,<3.0.0",
+    "torchvision>=0.20.0,<1.0.0",
     
-    # TensorFlow ecosystem
-    "tensorflow",
+    # TensorFlow ecosystem - use CPU version to avoid conflicts
+    "tensorflow-cpu",
     "tensorflow-datasets",
     "tensorflow-probability",
     "tensorflow-hub",
     "tensorflow-text",
     
-    # JAX ecosystem - use newer versions like the working project
-    "jax[cuda12]==0.5.0",
+    # JAX ecosystem - match openpi's exact versions
+    "jax[cuda12]==0.5.3",
     "flax==0.10.2",
     "optax>=0.2.0",
     "distrax>=0.1.5",
-    "orbax-checkpoint>=0.11.1",
+    "orbax-checkpoint==0.11.13",
+    
+    # From openpi dependencies
+    "augmax>=0.3.4",
+    "dm-tree>=0.1.8",
+    "equinox>=0.11.8",
+    "flatbuffers>=24.3.25",
+    "fsspec[gcs]>=2024.6.0",
+    "imageio>=2.36.1",
+    "jaxtyping==0.2.36",
+    "ml_collections==1.0.0",
+    "numpydantic>=1.6.6",
+    "sentencepiece>=0.2.0",
+    "tqdm-loggable>=0.2",
+    "typing-extensions>=4.12.2",
+    "tyro>=0.9.5",
+    "filelock>=3.16.1",
+    "beartype==0.19.0",
+    "treescope>=0.1.7",
+    "transformers==4.53.2",
+    "rich>=14.0.0",
+    "polars>=1.30.0",
+    "pillow>=11.0.0",
     
     # Your custom packages
     "dlimp",
     "libero",
+    "openpi",
     
     # Other dependencies
-    "ml_collections",
     "moviepy",
     "jupyter",
     "ipykernel",
     "ipywidgets",
-    "rich"
 ]
 
 [project.urls]
 Repository = "https://github.com/yajatyadav/multitask_RL"
 
+[tool.uv]
+override-dependencies = [
+    "ml-dtypes==0.4.1",
+    "tensorstore==0.1.74"
+]
+
 [tool.uv.sources]
 dlimp = { git = "https://github.com/yajatyadav/dlimp", branch = "main" }
-libero = {path = "libero", editable = true}
+libero = { path = "libero", editable = true }
+openpi = { path = "openpi_multitaskRL", editable = true }
 
 [tool.setuptools.packages.find]
 where = ["."]

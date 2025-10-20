@@ -2,8 +2,12 @@ from typing import Any, Optional, Sequence
 
 import distrax
 import flax.linen as nn
+import jax
 import jax.numpy as jnp
+import math
 
+from openpi.training import config as openpi_config
+from openpi.policies import policy_config
 
 def default_init(scale=1.0):
     """Default kernel initializer."""
@@ -232,3 +236,25 @@ class ActorVectorField(nn.Module):
         v = self.mlp(inputs)
 
         return v
+
+
+# not really a 'network' (hence no nn.Module), since it just holds a pretrained Pi0 model, but nice to keep the same structure
+class Pi0Actor():
+    """Pi0 actor, NOT a nn.Module, since it just holds a pretrained Pi0 model."""
+
+    def __init__(self, checkpoint_dir, config_name, action_horizon=1):
+        self.action_horizon = action_horizon
+        config = openpi_config.get_config(config_name)
+        config.model.action_horizon = action_horizon
+        assert config.model.action_horizon == action_horizon, f"Action horizon mismatch: {config.model.action_horizon} != {action_horizon}"
+        self.pi0_policy = policy_config.create_trained_policy(config, checkpoint_dir)
+
+
+    ## the eval script has a format_libero_obs_for_pi0_obs that alternately processes the raw observation so that it can be
+    # directly passed in here. Make sure to use that by setting args.eval_with_pi0 to True in the eval script!
+    def __call__(self, obs):
+        # for efficient parallelism, let's stack each value of dict obs_pi_zero into a batch of size num_samples
+        # unfortunately, openpi-side tokenization is not written to be batched; so unless that is fixed, this __call__ will only return 1 action at a tim
+        # and there needs to be an outer loop in agent.sample_actions for sampling num_samples actions
+        sampled_action = self.pi0_policy.infer(obs)["actions"]
+        return sampled_action

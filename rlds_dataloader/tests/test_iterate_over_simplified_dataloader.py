@@ -11,7 +11,7 @@ dataloader_config = {
     },
     "batch_size": 256,
     "balance_datasets": True,
-    "num_workers": 1, # dataloader workers
+    "num_workers": 8, # dataloader workers
     "prefetch_factor": 2,
     "seed": 42,
     "do_image_aug": False, # check file for sequence: dict(

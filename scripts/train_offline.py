@@ -251,9 +251,10 @@ def main(_):
             wrist_renders = []
             eval_metrics = {}
             libero_eval_args = Args(
+                eval_with_pi0=agent_config['agent_name'] == 'iql_pi0actor',
                 eval_use_images=FLAGS.pixel_observations, # set to False for state-based evals
                 seed=FLAGS.seed,
-                num_eval_episodes=FLAGS.eval_episodes if i > 1 else 5, # run 5 episodes for first time, as it's just a sanity check
+                num_eval_episodes=FLAGS.eval_episodes if i > 1 else 3, # run 3 episodes for first time, as it's just a sanity check
                 num_video_episodes=FLAGS.video_episodes,
                 num_steps_wait=FLAGS.num_steps_wait,
                 video_frame_skip=FLAGS.video_frame_skip,

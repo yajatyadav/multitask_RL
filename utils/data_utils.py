@@ -305,10 +305,10 @@ def unnormalize_action_mean_std(action, dataset_name: str):
 
 
 # puts images in range [-1, 1]
-# def normalize_image(image):
-#     assert image.dtype == np.uint8
-#     image = image.astype(np.float32) / 255.0 * 2.0 - 1.0
-#     return image
+def normalize_image(image):
+    assert image.dtype == np.uint8
+    image = image.astype(np.float32) / 255.0 * 2.0 - 1.0
+    return image
 
 
 # def unnormalize_image(image):
