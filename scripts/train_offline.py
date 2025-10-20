@@ -53,6 +53,7 @@ flags.DEFINE_integer('num_input_output_to_log', 3, 'Number of transitions to log
 # eval flags
 flags.DEFINE_integer('eval_episodes', 20, 'Number of evaluation episodes.')
 flags.DEFINE_integer('num_steps_wait', 10, 'Number of steps to wait for objects to stabilize.')
+flags.DEFINE_integer('num_replan_steps', 1, 'Number of open-loop steps to execute in eval before requeing the actor. This should be less than actor action horizon.')
 flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_float('eval_temperature', 1.0, 'Temperature for the actor.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
@@ -254,9 +255,10 @@ def main(_):
                 eval_with_pi0=agent_config['agent_name'] == 'iql_pi0actor',
                 eval_use_images=FLAGS.pixel_observations, # set to False for state-based evals
                 seed=FLAGS.seed,
-                num_eval_episodes=FLAGS.eval_episodes if i > 1 else 3, # run 3 episodes for first time, as it's just a sanity check
+                num_eval_episodes=FLAGS.eval_episodes if i > 1 else 30, # run 3 episodes for first time, as it's just a sanity check
                 num_video_episodes=FLAGS.video_episodes,
                 num_steps_wait=FLAGS.num_steps_wait,
+                num_replan_steps=FLAGS.num_replan_steps,
                 video_frame_skip=FLAGS.video_frame_skip,
                 eval_temperature=FLAGS.eval_temperature,
                 task_suite_name=FLAGS.task_suite_name,
@@ -269,6 +271,7 @@ def main(_):
                 agent=agent,
                 args=libero_eval_args,
             )
+            print(f"😛😛 Evaluation finished! 😛😛; Success rate: {eval_info['success']}")
             renders.extend(cur_renders)
             wrist_renders.extend(cur_wrist_renders)
             for k, v in eval_info.items():

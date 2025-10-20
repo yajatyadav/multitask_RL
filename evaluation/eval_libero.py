@@ -10,7 +10,7 @@ import pathlib
 import numpy as np
 import tqdm
 from dataclasses import dataclass
-from collections import defaultdict
+from collections import defaultdict, deque
 import jax
 
 from openpi_client import image_tools
@@ -32,6 +32,7 @@ class Args:
     num_eval_episodes: int = 20
     num_video_episodes: int = 5 # render only the first 5 episodes
     num_steps_wait: int = 10
+    num_replan_steps: int = 1 # number of open-loop steps to execute in eval before requeing the actor. This should be less than actor action horizon.
     video_frame_skip: int = 3
     eval_temperature: float = 1.0
     task_suite_name: str = "libero_10"
@@ -208,6 +209,7 @@ def evaluate(agent, args: Args):
 
         env.reset()    
         obs = env.set_init_state(initial_states[episode_idx])
+        action_plan = deque()
 
         # setup sticky gripper, inspired from https://github.com/rail-berkeley/bridge_data_v2/blob/main/experiments/eval_lc.py
         is_gripper_closed = False
@@ -226,28 +228,34 @@ def evaluate(agent, args: Args):
         for t in tqdm.trange(max_steps, desc=f"Episode {episode_idx} Progress ", position=1, leave=False):  
             if (episode_idx < args.num_video_episodes) and (t % args.video_frame_skip == 0 or done):
                 render.append(np.ascontiguousarray(obs["agentview_image"][::-1, ::-1], dtype=np.uint8)) # need to copy since obs images get changed in-place later on during normalization
-                # wrist_ren der.append(obs["robot0_eye_in_hand_image"][::-1, ::-1])
+                # wrist_render.append(obs["robot0_eye_in_hand_image"][::-1, ::-1])
 
-            # format input/output for pi0
-            if args.eval_with_pi0:
-                pi0_obs = copy.deepcopy(obs) # take deepcopy of raw observation to feed into pi0 (pi0 expects completely raw obs)
-                pi0_obs = format_libero_obs_for_pi0_obs(pi0_obs, task_description)
-            
-            # format input/output for value networks. This format_fn might modify the obs IN PLACE!
-            obs = format_libero_obs_for_agent(obs, task_description, task_embedding, sim_state, args.dataset_name, args.eval_use_images)
+            if not action_plan: # only bother with below steps if action plan is empty
+                
+                # format input/output for pi0
+                if args.eval_with_pi0:
+                    pi0_obs = copy.deepcopy(obs) # take deepcopy of raw observation to feed into pi0 (pi0 expects completely raw obs)
+                    pi0_obs = format_libero_obs_for_pi0_obs(pi0_obs, task_description)
+                
+                # format input/output for value networks. This format_fn might modify the obs IN PLACE!
+                obs = format_libero_obs_for_agent(obs, task_description, task_embedding, sim_state, args.dataset_name, args.eval_use_images)
 
-            if args.eval_with_pi0:
-                action, sampling_info = actor_fn(value_obs=obs, pi0_obs=pi0_obs, temperature=args.eval_temperature)
-            else:
-                action = actor_fn(observations=obs, temperature=args.eval_temperature)
-                sampling_info = {}
-            
-            action, is_gripper_closed, num_consecutive_gripper_change_actions = format_agent_action_for_libero(action, args.dataset_name, is_gripper_closed, num_consecutive_gripper_change_actions)
-            # take action in environment
+                if args.eval_with_pi0:
+                    action_chunk, sampling_info = actor_fn(value_obs=obs, pi0_obs=pi0_obs, temperature=args.eval_temperature)
+                else:
+                    action_chunk, sampling_info = actor_fn(observations=obs, temperature=args.eval_temperature), {} # TODO(YY): log some sampling metrics in other methods like AWR?
+                    action_chunk, is_gripper_closed, num_consecutive_gripper_change_actions = format_agent_action_for_libero(action, args.dataset_name, is_gripper_closed, num_consecutive_gripper_change_actions) # extra layer of formatting needed if using awr/ddpg+c; if using openpi, there is already a transform stack for unnormalizing, etc.
+
+                assert len(action_chunk) >= args.num_replan_steps, f"We want to replan every {args.num_replan_steps} steps, but policy only predicts {len(action_chunk)} steps."
+                action_plan.extend(action_chunk[: args.num_replan_steps])
+                
+            # pop next action from plan, and take it in environment
+            action = action_plan.popleft()            
             next_obs, reward, done, info = env.step(action)
             sim_state = env.get_sim_state()
             info['success'] = float(1 if done else 0)
             info.update(sampling_info)
+            obs = next_obs
 
             # transition = dict(
             #     observation=obs,
@@ -258,7 +266,7 @@ def evaluate(agent, args: Args):
             #     info=info,
             # )
             # add_to(traj, transition)
-            obs = next_obs
+            
 
             if done:
                 num_success_episodes += 1

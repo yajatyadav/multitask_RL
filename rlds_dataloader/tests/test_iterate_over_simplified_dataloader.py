@@ -9,6 +9,7 @@ dataloader_config = {
     "dataset_mix": { 
         "libero_90__black_bowl_on_plate_kitchen_scene1": 1.0, # weights are in terms of odds
     },
+    "window_size": 5,
     "batch_size": 256,
     "balance_datasets": True,
     "num_workers": 8, # dataloader workers
@@ -26,7 +27,7 @@ dataloader = rlds_data_loader.create_data_loader(
     load_images=False,
     load_proprio=False,
     load_language=False,
-    normalize_batches=True,
+    normalize_batches=False,
 )
 
 data_iter = iter(dataloader)
@@ -38,7 +39,8 @@ for i, batch in tqdm.tqdm(enumerate(data_iter)):
         print(f"Time taken to iterate over the first batch: {first_iter_end_time - first_iter_start_time} seconds")
     if i == 1:
         start_time = time.time()
-    if i == 1000:
+        import pdb; pdb.set_trace()
+    if i == 10_000:
         break
     
     # actions = batch['actions']

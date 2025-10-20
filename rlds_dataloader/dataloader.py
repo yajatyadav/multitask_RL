@@ -18,20 +18,22 @@ class RLDSDataLoader():
         self.load_language = load_language
     ## fix up the batch in a fromat downstream agents can more easily use
     def postprocess_batch(self, batch):
+        import pdb; pdb.set_trace()
         task = batch["task"]
         action = batch["action"]
         reward = batch["reward"]
         is_terminal = batch["is_terminal"]
-        curr_and_next_observation = batch["observation"]
+        states_window = batch["observation"]
 
-        observation = tf.nest.map_structure(lambda x: x[:, 0], curr_and_next_observation)
-        next_observation = tf.nest.map_structure(lambda x: x[:, 1], curr_and_next_observation)      
+        # get the first and last observation from our sliding window
+        observation = tf.nest.map_structure(lambda x: x[:, 0], states_window)
+        next_observation = tf.nest.map_structure(lambda x: x[:, -1], states_window)
+
         if self.load_language:
             observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])
             next_observation['task_embedding'] = self.text_encoder.encode(task['language_instruction'])  
 
-        # squeeze out the window dimension from actions
-        action = np.squeeze(action, axis=1)   
+       
 
         # make masks using is_terminals: 0 if terminal, 1 if not
         masks = np.where(is_terminal, 0, 1)
@@ -82,7 +84,7 @@ def create_data_loader(
         num_workers = config["num_workers"],
         prefetch_factor=config["prefetch_factor"],
         action_horizon = 1,
-        window_size = 2,
+        window_size = config["window_size"],
         shuffle_buffer_size = 50_000,
         skip_norm_stats = True,
         train = config["train"],

@@ -13,7 +13,7 @@
 #SBATCH -e ../slurm_logs/slurm-%j.err
 
 # set the GPU ID
-gpu_id=5
+gpu_id=1
 export MUJOCO_GL=egl
 export PYOPENGL_PLATFORM=egl
 export EGL_DEVICE_ID=$gpu_id
@@ -23,7 +23,7 @@ export CUDA_VISIBLE_DEVICES=$gpu_id
 # Environment variables
 export TF_CPP_MIN_LOG_LEVEL=3
 export WANDB__SERVICE_WAIT=86400
-export XLA_PYTHON_CLIENT_MEM_FRACTION=0.10
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
 
 export OMP_NUM_THREADS=1 
 export OPENBLAS_NUM_THREADS=1
@@ -35,7 +35,7 @@ export NUMEXPR_NUM_THREADS=1
 # Run the training script
 uv run scripts/train_offline.py \
 --use_wandb=True \
---exp_name_prefix='debug_pi0_libero_pipeline__' \
+--exp_name_prefix='normal_pi0_libero_50_horizon__best_of_1__' \
 --run_group=debug_pi0_libero_pipeline__ \
 --seed=42 \
 --save_dir=exp/ \
@@ -47,8 +47,9 @@ uv run scripts/train_offline.py \
 --save_interval=1000000 \
 --num_input_output_to_log=3 \
 \
---eval_episodes=20 \
+--eval_episodes=30 \
 --num_steps_wait=10 \
+--num_replan_steps=10 \
 --video_frame_skip=3 \
 --eval_temperature=1.0 \
 --task_suite_name="libero_90" \
@@ -69,4 +70,5 @@ uv run scripts/train_offline.py \
 --agent.encoder="state_space_encoder" \
 --agent.pi0_checkpoint_dir='../checkpoints/pi0_all_libero_but_10_flipped_train_split/pi0_all_libero_but_10_flipped_train_split__batch_64_steps_30k/10000' \
 --agent.pi0_config_name='pi0_libero_mine' \
---agent.pi0_best_of_n_samples=3 \
+--agent.pi0_best_of_n_samples=1 \
+--agent.pi0_action_horizon=50 \

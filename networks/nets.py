@@ -6,8 +6,9 @@ import jax
 import jax.numpy as jnp
 import math
 
-from openpi.training import config as openpi_config
 from openpi.policies import policy_config
+import openpi.models.pi0_config as pi0_config
+from openpi.training.config import TrainConfig, DataConfig, AssetsConfig, LeRobotLiberoDataConfig
 
 def default_init(scale=1.0):
     """Default kernel initializer."""
@@ -244,10 +245,10 @@ class Pi0Actor():
 
     def __init__(self, checkpoint_dir, config_name, action_horizon=1):
         self.action_horizon = action_horizon
-        config = openpi_config.get_config(config_name)
-        config.model.action_horizon = action_horizon
+        config = build_libero_openpi_config(config_name, action_horizon)
         assert config.model.action_horizon == action_horizon, f"Action horizon mismatch: {config.model.action_horizon} != {action_horizon}"
         self.pi0_policy = policy_config.create_trained_policy(config, checkpoint_dir)
+        print(f"😛😛 Pi0Actor initialized! 😛😛")
 
 
     ## the eval script has a format_libero_obs_for_pi0_obs that alternately processes the raw observation so that it can be
@@ -258,3 +259,21 @@ class Pi0Actor():
         # and there needs to be an outer loop in agent.sample_actions for sampling num_samples actions
         sampled_action = self.pi0_policy.infer(obs)["actions"]
         return sampled_action
+
+
+def build_libero_openpi_config(config_name, action_horizon):
+    return TrainConfig(
+        name=config_name,
+        model=pi0_config.Pi0Config(action_horizon=action_horizon),
+        data=LeRobotLiberoDataConfig(
+            repo_id="yajatyadav/all_libero_but_10_flipped_train_split", 
+            assets = AssetsConfig(
+                assets_dir = "/raid/users/yajatyadav/assets/pi0_all_libero_but_10_flipped_train_split", # re-use assets from previous pre-training run, since this is still using the same dataset
+                asset_id = "yajatyadav/all_libero_but_10_flipped_train_split",
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+            extra_delta_transform=True, # have to set this to True since the checkpoint was trained with this additional delta transform
+        )
+    )
