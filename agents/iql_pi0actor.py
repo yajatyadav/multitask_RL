@@ -226,7 +226,7 @@ def get_config():
         dict(
             agent_name='iql_pi0actor',  # Agent name.
             lr=3e-4,  # Learning rate.
-            value_hidden_dims=(512, 512, 512, 512, 512),  # Value network hidden dimensions.
+            value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
             layer_norm=True,  # Whether to use layer normalization.      
             discount=0.99,  # Discount factor.
             tau=0.005,  # Target network update rate.
@@ -236,7 +236,7 @@ def get_config():
             pi0_config_name='pi0_libero_mine', # TODO(YY): this currently has the extra delta_transform enabled since we trained our checkpoint with this
             # need to either retrain without it, or convert actions to relative during dataloading step!
             pi0_action_horizon=1,
-            pi0_best_of_n_samples=10,
+            pi0_best_of_n_samples=3,
         )
     )
     return config
