@@ -240,6 +240,7 @@ def get_config():
             pi0_checkpoint_dir='../checkpoints/pi0_all_libero_but_10_flipped_train_split/pi0_all_libero_but_10_flipped_train_split__batch_64_steps_30k/10000',
             pi0_config_name='pi0_libero_mine', # TODO(YY): this currently has the extra delta_transform enabled since we trained our checkpoint with this
             # need to either retrain without it, or convert actions to relative during dataloading step!
+            action_chunk_length=1,
             pi0_action_horizon=1,
             pi0_best_of_n_samples=1,
         )

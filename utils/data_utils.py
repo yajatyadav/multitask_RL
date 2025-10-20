@@ -251,7 +251,7 @@ def normalize_action_min_max(action, norm_stats):
     action_norm_stats = norm_stats["actions"]
     action_min, action_max = action_norm_stats["min"], action_norm_stats["max"]
     action_min, action_max = np.array(action_min), np.array(action_max)
-    action[:, :6] = 2 * (action[:, :6] - action_min[:6]) / (action_max[:6] - action_min[:6] + 1e-8) - 1.0
+    action[:, :, :6] = 2 * (action[:, :, :6] - action_min[:6]) / (action_max[:6] - action_min[:6] + 1e-8) - 1.0
 
     # scale everthing closer to 0 a bit so we don't get Nan log_probs using tanh
     action = action * (1 - 1e-4)

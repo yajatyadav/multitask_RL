@@ -62,6 +62,8 @@ def chunk_act_obs(traj: Dict, window_size: int, future_action_window_size: int =
 
     traj["observation"] = tf.nest.map_structure(lambda x: tf.gather(x, capped_obs_indices), traj["observation"])
     chunked_actions = tf.gather(traj["action"], capped_action_indices)
+    # Gather rewards using capped indices (repeats last reward)
+    chunked_rewards = tf.gather(traj["reward"], capped_reward_indices)
 
     actions_past_end = action_chunk_indices  >= traj_len
 
@@ -83,10 +85,13 @@ def chunk_act_obs(traj: Dict, window_size: int, future_action_window_size: int =
     )
     actions_past_end = action_chunk_indices >= traj_len
     traj["action"] = tf.where(actions_past_end[:, :, None], neutral_actions, chunked_actions)
+    # Store chunked rewards (last reward is repeated for padding)
+    traj["reward"] = chunked_rewards
 
-    # setting padding
+    # setting padding: True if valid, False if padding
     traj["observation"]["pad_mask"] = obs_chunk_indices < traj_len
     traj["action_pad_mask"] = action_chunk_indices < traj_len
+    traj["reward_pad_mask"] = reward_chunk_indices < traj_len
 
     return traj
 

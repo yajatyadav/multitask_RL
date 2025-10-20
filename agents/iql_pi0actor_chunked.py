@@ -13,7 +13,7 @@ from utils.flax_utils import ModuleDict, TrainState, nonpytree_field
 from networks.nets import Actor, Value, TransformedWithMode, Pi0Actor
 
 
-class IQLPi0ActorAgent(flax.struct.PyTreeNode):
+class IQLPi0ActorAgentChunked(flax.struct.PyTreeNode):
     """Implicit Q-learning (IQL) agent, which uses the Pi0 model as an actor - sampling is just best-of-N, ranked via Q-values, for now."""
 
     rng: Any
@@ -29,7 +29,9 @@ class IQLPi0ActorAgent(flax.struct.PyTreeNode):
 
     def value_loss(self, batch, grad_params):
         """Compute the IQL value loss."""
-        q1, q2 = self.network.select('target_critic')(batch['observations'], actions=batch['actions'])
+        
+        batch_actions = jnp.reshape(batch['actions'], (batch["actions"].shape[0], -1)) ## TODO(YY): naively flattening action chunk into 1 long vector to concat with state and feed into value MLP. Maybe a better approach??
+        q1, q2 = self.network.select('target_critic')(batch['observations'], actions=batch_actions)
         q = jnp.minimum(q1, q2)
         v = self.network.select('value')(batch['observations'], params=grad_params)
         value_loss = self.expectile_loss(q - v, q - v, self.config['expectile']).mean()
@@ -44,9 +46,18 @@ class IQLPi0ActorAgent(flax.struct.PyTreeNode):
     def critic_loss(self, batch, grad_params):
         """Compute the IQL critic loss."""
         next_v = self.network.select('value')(batch['next_observations'])
-        q = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v
 
-        q1, q2 = self.network.select('critic')(batch['observations'], actions=batch['actions'], params=grad_params)
+        ## QC style TD learning objective
+        action_chunk_length = batch['rewards'].shape[1]
+        discount_powers = self.config['discount'] ** jnp.arange(action_chunk_length)
+        discounted_rewards = jnp.sum(batch['rewards'] * discount_powers[None, :], axis=1) # do not need to mask rewards b/c 1. they just repeat 0 for expert demos; 2. the model is at end, we end an absorbing (s,a) in the MDP and keep accumulating r(s,a) forever
+        
+        next_v_discount = self.config['discount'] ** action_chunk_length
+
+        q = discounted_rewards + next_v_discount * next_v * batch['masks']
+
+        batch_actions = jnp.reshape(batch['actions'], (batch["actions"].shape[0], -1))
+        q1, q2 = self.network.select('critic')(batch['observations'], actions=batch_actions, params=grad_params)
         critic_loss = ((q1 - q) ** 2 + (q2 - q) ** 2).mean()
 
         return critic_loss, {
@@ -97,8 +108,12 @@ class IQLPi0ActorAgent(flax.struct.PyTreeNode):
 
     @jax.jit
     def get_advantages(self, obs, actions):
-        """Takes a singular observation and multiple proposed actions, and returns the advantages of all these actions."""
-        obs = jax.tree_util.tree_map(lambda x: jnp.stack([x.squeeze(0)] * self.config['pi0_best_of_n_samples']), obs)
+        """Takes a singular observation and multiple proposed action chunks, and returns the advantages of all these actions."""
+        obs = jax.tree_util.tree_map(
+    lambda x: jnp.repeat(x, self.config['pi0_best_of_n_samples'], axis=0), 
+    obs
+)
+        actions = jnp.reshape(actions, (actions.shape[0], -1)) 
         q1, q2 = self.network.select('target_critic')(obs, actions=actions)
         q = jnp.minimum(q1, q2)
         v = self.network.select('value')(obs)
@@ -123,30 +138,28 @@ class IQLPi0ActorAgent(flax.struct.PyTreeNode):
         for _ in range(self.config['pi0_best_of_n_samples']):
             action = self.pi0_actor(pi0_obs) # does transforms, then model.sample_actions() (which is jitted)
             sampled_actions.append(action) # squueze needed so that concatenation with the encoder output works out in the value net
+        
+        # only add first action_chunk_size actions, these will be the only ones that execute!
+        sampled_actions = [action[:self.config['action_chunk_length']] for action in sampled_actions]
         sampled_actions = jnp.stack(sampled_actions)
         pi0_end_time = time.time()
 
-        if sampled_actions.shape[0] == 1:
-            # if only sampling 1 action chunk, just return it directly; avoids having to deal with potential shaping issues with the value networks
-            best_action = sampled_actions[0]
-            eval_info = {}
-        else:
-        ## TODO(YY): use temperature here to not always pick the 'best' action
-            # rank via q and v networks
-            q_start_time = time.time()
-            adv = self.get_advantages(value_obs, sampled_actions)        
-            best_action_idx = jnp.argmax(adv)
-            best_action = sampled_actions[best_action_idx].reshape(1, -1)
-            q_end_time = time.time()
+    ## TODO(YY): use temperature here to not always pick the 'best' action
+        # rank via q and v networks
+        q_start_time = time.time()
+        adv = self.get_advantages(value_obs, sampled_actions)        
+        best_action_idx = jnp.argmax(adv)
+        best_action = sampled_actions[best_action_idx]
+        q_end_time = time.time()
 
-            # build a eval actor info dict tracking relevant metrics!
-            eval_info = {
-                'sampling/adv_mean': adv.mean(),
-                'sampling/adv_max': adv.max(),
-                'sampling/adv_min': adv.min(),
-                'sampling/adv_std': adv.std(),
-                'time/q_time': q_end_time - q_start_time,
-            }
+        # build a eval actor info dict tracking relevant metrics!
+        eval_info = {
+            'sampling/adv_mean': adv.mean(),
+            'sampling/adv_max': adv.max(),
+            'sampling/adv_min': adv.min(),
+            'sampling/adv_std': adv.std(),
+            'time/q_time': q_end_time - q_start_time,
+        }
         # add batch dim to reshape action into (1, action_dim), needed for downstream use in eval
         eval_info.update({
                 'sampling/sampled_actions_mean': sampled_actions.mean(axis=0),
@@ -229,9 +242,9 @@ class IQLPi0ActorAgent(flax.struct.PyTreeNode):
 def get_config():
     config = ml_collections.ConfigDict(
         dict(
-            agent_name='iql_pi0actor',  # Agent name.
+            agent_name='iql_pi0actor_chunked',  # Agent name.
             lr=3e-4,  # Learning rate.
-            value_hidden_dims=(4,),  # Value network hidden dimensions.
+            value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
             layer_norm=True,  # Whether to use layer normalization.      
             discount=0.99,  # Discount factor.
             tau=0.005,  # Target network update rate.
@@ -240,8 +253,9 @@ def get_config():
             pi0_checkpoint_dir='../checkpoints/pi0_all_libero_but_10_flipped_train_split/pi0_all_libero_but_10_flipped_train_split__batch_64_steps_30k/10000',
             pi0_config_name='pi0_libero_mine', # TODO(YY): this currently has the extra delta_transform enabled since we trained our checkpoint with this
             # need to either retrain without it, or convert actions to relative during dataloading step!
-            pi0_action_horizon=1,
-            pi0_best_of_n_samples=1,
+            action_chunk_length=5,
+            pi0_action_horizon=50,
+            pi0_best_of_n_samples=3,
         )
     )
     return config

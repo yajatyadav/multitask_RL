@@ -7,7 +7,7 @@ import numpy as np
 dataloader_config = {
     "data_root_dir": "../datasets/",
     "dataset_mix": { 
-        "libero_90__black_bowl_on_plate_kitchen_scene1": 1.0, # weights are in terms of odds
+        "libero_90__book_right_compartment_caddy__study_scene1": 1.0, # weights are in terms of odds
     },
     "window_size": 5,
     "batch_size": 256,

@@ -53,7 +53,6 @@ flags.DEFINE_integer('num_input_output_to_log', 3, 'Number of transitions to log
 # eval flags
 flags.DEFINE_integer('eval_episodes', 20, 'Number of evaluation episodes.')
 flags.DEFINE_integer('num_steps_wait', 10, 'Number of steps to wait for objects to stabilize.')
-flags.DEFINE_integer('num_replan_steps', 1, 'Number of open-loop steps to execute in eval before requeing the actor. This should be less than actor action horizon.')
 flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_float('eval_temperature', 1.0, 'Temperature for the actor.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
@@ -137,11 +136,16 @@ def main(_):
     random.seed(FLAGS.seed)
     np.random.seed(FLAGS.seed)
 
+    # start setting-up agent
+    agent_config = FLAGS.agent
+    agent_class = agents[agent_config['agent_name']]
+
     ## setup dataloaders
     unnormalized_train_dataset_mix = dataset_mixtures[FLAGS.train_dataset_mix_name]
     train_dataset_mix = ratios_to_odds_mixture(unnormalized_train_dataset_mix)
     train_dataloader_config = {
         'data_root_dir': FLAGS.data_root_dir,
+        'window_size': agent_config.action_chunk_length + 1,
         'dataset_mix': train_dataset_mix,
         'balance_datasets': FLAGS.balance_datasets,
         'batch_size': FLAGS.batch_size,
@@ -169,6 +173,7 @@ def main(_):
         val_dataloader_config = {
             'data_root_dir': FLAGS.data_root_dir,
             'dataset_mix': val_dataset_mix,
+            'window_size': agent_config.action_chunk_length + 1,
             'balance_datasets': FLAGS.balance_datasets,
             'batch_size': FLAGS.batch_size,
             'num_workers': FLAGS.num_workers,
@@ -194,14 +199,10 @@ def main(_):
         val_data_iter = None
     
     example_batch = next(data_iter)
-
-    # setup agent
-    agent_config = FLAGS.agent
-    agent_class = agents[agent_config['agent_name']]
     agent = agent_class.create(
         FLAGS.seed,
         example_batch['observations'],
-        example_batch['actions'],
+        example_batch['actions'].reshape(example_batch['actions'].shape[0], -1), # when initializing, flatten across action_chunk dimension, since that is how the networks are trained as well
         agent_config,
     )    
 
@@ -252,13 +253,13 @@ def main(_):
             wrist_renders = []
             eval_metrics = {}
             libero_eval_args = Args(
-                eval_with_pi0=agent_config['agent_name'] == 'iql_pi0actor',
+                eval_with_pi0='pi0' in agent_config['agent_name'].lower(), ## TODO(YY): not a clean way, but lets us quickly tweak eval script to send obs suited for pi0
                 eval_use_images=FLAGS.pixel_observations, # set to False for state-based evals
                 seed=FLAGS.seed,
                 num_eval_episodes=FLAGS.eval_episodes if i > 1 else 30, # run 3 episodes for first time, as it's just a sanity check
                 num_video_episodes=FLAGS.video_episodes,
                 num_steps_wait=FLAGS.num_steps_wait,
-                num_replan_steps=FLAGS.num_replan_steps,
+                num_replan_steps=agent_config.action_chunk_length, # we will only execute action chunk for which we have trained a q-function
                 video_frame_skip=FLAGS.video_frame_skip,
                 eval_temperature=FLAGS.eval_temperature,
                 task_suite_name=FLAGS.task_suite_name,

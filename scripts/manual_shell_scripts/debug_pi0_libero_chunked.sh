@@ -13,7 +13,7 @@
 #SBATCH -e ../slurm_logs/slurm-%j.err
 
 # set the GPU ID
-gpu_id=1
+gpu_id=2
 export MUJOCO_GL=egl
 export PYOPENGL_PLATFORM=egl
 export EGL_DEVICE_ID=$gpu_id
@@ -35,7 +35,7 @@ export NUMEXPR_NUM_THREADS=1
 # Run the training script
 uv run scripts/train_offline.py \
 --use_wandb=True \
---exp_name_prefix='normal_pi0_libero_50_horizon_replan_5__best_of_1__' \
+--exp_name_prefix='pi0_libero_50_horizon_action_chunk_5__best_of_3__expectile_0.7__LR_3e-4_state_based_' \
 --run_group=debug_pi0_libero_pipeline__ \
 --seed=42 \
 --save_dir=exp/ \
@@ -43,13 +43,12 @@ uv run scripts/train_offline.py \
 --pixel_observations=False \
 --offline_steps=1000000 \
 --log_interval=5000 \
---eval_interval=50000 \
+--eval_interval=100000 \
 --save_interval=1000000 \
 --num_input_output_to_log=3 \
 \
 --eval_episodes=30 \
 --num_steps_wait=10 \
---num_replan_steps=5 \
 --video_frame_skip=3 \
 --eval_temperature=1.0 \
 --task_suite_name="libero_90" \
@@ -64,11 +63,12 @@ uv run scripts/train_offline.py \
 --do_image_aug=False \
 --binarize_gripper=True \
 \
---agent=agents/iql_pi0actor.py \
+--agent=agents/iql_pi0actor_chunked.py \
+--agent.action_chunk_length=5 \
 --agent.expectile=0.7 \
 --agent.lr=3e-4 \
 --agent.encoder="state_space_encoder" \
 --agent.pi0_checkpoint_dir='../checkpoints/pi0_all_libero_but_10_flipped_train_split/pi0_all_libero_but_10_flipped_train_split__batch_64_steps_30k/10000' \
 --agent.pi0_config_name='pi0_libero_mine' \
---agent.pi0_best_of_n_samples=1 \
+--agent.pi0_best_of_n_samples=3 \
 --agent.pi0_action_horizon=50 \

@@ -18,11 +18,10 @@ class RLDSDataLoader():
         self.load_language = load_language
     ## fix up the batch in a fromat downstream agents can more easily use
     def postprocess_batch(self, batch):
-        import pdb; pdb.set_trace()
         task = batch["task"]
         action = batch["action"]
         reward = batch["reward"]
-        is_terminal = batch["is_terminal"]
+        # is_terminal = batch["is_terminal"]
         states_window = batch["observation"]
 
         # get the first and last observation from our sliding window
@@ -35,18 +34,19 @@ class RLDSDataLoader():
 
        
 
-        # make masks using is_terminals: 0 if terminal, 1 if not
-        masks = np.where(is_terminal, 0, 1)
+        # the mask is used in the loss-function to signal whether next_observation is truly a next_observation or just padding
+        # thus, we can just set mask by using next_observation['pad_mask']
+        mask = np.where(next_observation['pad_mask'], 1, 0)
 
         ## map rewards: 0-> -1, 1 -> 0
         reward = np.where(reward == 0, -1, 0)  
 
         batch = {
-        "actions": action,
-        "rewards": reward,
-        "observations": observation,
-        "next_observations": next_observation,
-        "masks": masks,
+        "actions": action, # shape (B, W - 1, A)
+        "rewards": reward, # shape (B, W - 1)
+        "observations": observation, # ex: sim_state has shape (B, 45)
+        "next_observations": next_observation, # same thing, (B, 45)
+        "masks": mask, # shape (B,), used to mask next_observation in TD learning
         }
         
         if self.normalize_batches:

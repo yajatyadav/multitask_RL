@@ -175,6 +175,7 @@ def get_sample_input_output_log_to_wandb(batch: dict):
     dict_to_log.update(log_obs(batch["next_observations"], "next_observations"))
     
     rewards = batch["rewards"]
+    rewards = np.mean(rewards, axis=tuple(range(1, rewards.ndim))) # rewards may have extra dim in case of action-chunking -> collapse rewards into (b,) by averagin
     actions = batch["actions"]
     masks = batch["masks"]
     dict_to_log.update({
