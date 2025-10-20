@@ -20,9 +20,16 @@ export EGL_DEVICE_ID=$gpu_id
 export MUJOCO_EGL_DEVICE_ID=$gpu_id
 export CUDA_VISIBLE_DEVICES=$gpu_id
 
-# Environment variables
+# wandb environment variables
 export TF_CPP_MIN_LOG_LEVEL=3
 export WANDB__SERVICE_WAIT=86400
+export WANDB_NETWORK_TIMEOUT=600
+export WANDB_FILE_TRANSFER_TIMEOUT=1200
+export WANDB_INIT_TIMEOUT=300
+export WANDB_HTTP_TIMEOUT=600
+export WANDB_RETRY_ATTEMPTS=15
+export WANDB_RETRY_WAIT_MIN=5
+export WANDB_RETRY_WAIT_MAX=120
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
 
 export OMP_NUM_THREADS=1 
@@ -35,7 +42,7 @@ export NUMEXPR_NUM_THREADS=1
 # Run the training script
 uv run scripts/train_offline.py \
 --use_wandb=True \
---exp_name_prefix='pi0_libero_50_horizon_action_chunk_5__best_of_3__expectile_0.7__LR_3e-4_state_based_' \
+--exp_name_prefix='pi0_libero_50_horizon_action_chunk_5__best_of_16__expectile_0.9__LR_3e-4_state_based_' \
 --run_group=debug_pi0_libero_pipeline__ \
 --seed=42 \
 --save_dir=exp/ \
@@ -43,11 +50,11 @@ uv run scripts/train_offline.py \
 --pixel_observations=False \
 --offline_steps=1000000 \
 --log_interval=5000 \
---eval_interval=100000 \
+--eval_interval=250000 \
 --save_interval=1000000 \
 --num_input_output_to_log=3 \
 \
---eval_episodes=30 \
+--eval_episodes=50 \
 --num_steps_wait=10 \
 --video_frame_skip=3 \
 --eval_temperature=1.0 \
@@ -65,10 +72,10 @@ uv run scripts/train_offline.py \
 \
 --agent=agents/iql_pi0actor_chunked.py \
 --agent.action_chunk_length=5 \
---agent.expectile=0.7 \
+--agent.expectile=0.9 \
 --agent.lr=3e-4 \
 --agent.encoder="state_space_encoder" \
 --agent.pi0_checkpoint_dir='../checkpoints/pi0_all_libero_but_10_flipped_train_split/pi0_all_libero_but_10_flipped_train_split__batch_64_steps_30k/10000' \
 --agent.pi0_config_name='pi0_libero_mine' \
---agent.pi0_best_of_n_samples=3 \
+--agent.pi0_best_of_n_samples=16 \
 --agent.pi0_action_horizon=50 \
