@@ -88,7 +88,7 @@ class FrameStackWrapper(gymnasium.Wrapper):
         return self.get_observation(), reward, terminated, truncated, info
 
 
-def make_env_and_datasets(env_name, frame_stack=None, action_clip_eps=1e-5):
+def make_env_and_datasets(env_name, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5):
     """Make offline RL environment and datasets.
 
     Args:
@@ -136,6 +136,17 @@ def make_env_and_datasets(env_name, frame_stack=None, action_clip_eps=1e-5):
         eval_env = EpisodeMonitor(eval_env)
         dataset = robomimic_utils.get_dataset(env, env_name)
         train_dataset, val_dataset = dataset, None
+    elif env_name.startswith("libero"):
+        #libero
+        from envs import libero_utils
+        obs_keys_to_load = ['obs/ee_pos', 'obs/ee_ori', 'obs/gripper_states', 'states'] # 'states' is a vector of eef_state + flattened mujoco simulator state; right now we are keeping the timestep entry in the simullator-state vector!
+
+        env = libero_utils.make_env(env_name, keys_to_load=obs_keys_to_load, seed=0)
+        eval_env = libero_utils.make_env(env_name, keys_to_load=obs_keys_to_load, seed=42)
+        env = EpisodeMonitor(env)
+        eval_env = EpisodeMonitor(eval_env)
+        dataset = libero_utils.get_dataset(env, env_name, obs_keys_to_load) # keys_to_load to control what gets loaded in!
+        train_dataset, val_dataset = dataset, None
     else:
         raise ValueError(f'Unsupported environment: {env_name}')
 
@@ -143,8 +154,8 @@ def make_env_and_datasets(env_name, frame_stack=None, action_clip_eps=1e-5):
         env = FrameStackWrapper(env, frame_stack)
         eval_env = FrameStackWrapper(eval_env, frame_stack)
 
-    env.reset()
-    eval_env.reset()
+    # env.reset()
+    # eval_env.reset()
 
     # Clip dataset actions.
     if action_clip_eps is not None:
