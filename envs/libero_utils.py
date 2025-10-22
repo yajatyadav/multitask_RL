@@ -64,8 +64,9 @@ def _check_dataset_exists(env_name):
         suite, task = env_name.split("-")
         scene = ''
     file_name = f'{scene.upper()}_{task}_demo.hdf5'
+    libero_dataset_dir = os.path.join(os.path.dirname(os.getcwd()), 'datasets/raw_libero')
     dataset_path = os.path.join(
-        '/raid/users/yajatyadav/datasets/raw_libero', # fix!!
+        libero_dataset_dir,
         suite.upper(),
         file_name
     )

@@ -16,8 +16,8 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=best_of_16_image_aug__ \
---run_group=debug_qc_libero \
+--exp_name_prefix=best_of_128__ \
+--run_group=QCFQL_best_of_128_ \
 --env_name=libero_90-study_scene1-pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy \
 \
 --online_steps=0 \
