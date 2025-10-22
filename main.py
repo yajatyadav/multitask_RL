@@ -1,7 +1,7 @@
 import glob, tqdm, wandb, os, json, random, time, jax
 from absl import app, flags
 from ml_collections import config_flags
-from log_utils import setup_wandb, get_exp_name, get_flag_dict, CsvLogger
+from log_utils import setup_wandb, get_exp_name, get_flag_dict, CsvLogger, get_sample_input_output_log_to_wandb, get_wandb_video
 
 from envs.env_utils import make_env_and_datasets
 from envs.ogbench_utils import make_ogbench_env_and_datasets
@@ -11,7 +11,8 @@ from envs.libero_utils import is_libero_env
 from utils.flax_utils import save_agent
 from utils.datasets import Dataset, ReplayBuffer
 
-from evaluation import evaluate
+from evaluation import evaluate as evaluate_others
+from evaluation_libero import evaluate as evaluate_libero
 from agents import agents
 import numpy as np
 
@@ -21,6 +22,7 @@ if 'CUDA_VISIBLE_DEVICES' in os.environ:
 
 FLAGS = flags.FLAGS
 
+flags.DEFINE_string('exp_name_prefix', '', 'Experiment name prefix.')
 flags.DEFINE_string('run_group', 'Debug', 'Run group.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_string('env_name', 'cube-triple-play-singletask-task2-v0', 'Environment (dataset) name.')
@@ -30,9 +32,12 @@ flags.DEFINE_integer('offline_steps', 1000000, 'Number of online steps.')
 flags.DEFINE_integer('online_steps', 1000000, 'Number of online steps.')
 flags.DEFINE_integer('buffer_size', 2000000, 'Replay buffer size.')
 flags.DEFINE_integer('log_interval', 5000, 'Logging interval.')
+flags.DEFINE_integer('num_input_output_to_log', 3, 'Number of transitions to log to wandb.')
 flags.DEFINE_integer('eval_interval', 100000, 'Evaluation interval.')
 flags.DEFINE_integer('save_interval', -1, 'Save interval.')
 flags.DEFINE_integer('start_training', 5000, 'when does training start')
+
+flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
 
 flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
 
@@ -66,13 +71,12 @@ class LoggingHelper:
         self.wandb_logger.log({f'{prefix}/{k}': v for k, v in data.items()}, step=step)
 
 def main(_):
-    exp_name = get_exp_name(FLAGS.seed)
-    run = setup_wandb(project='multitask_RL_QC_', group=FLAGS.run_group, name=exp_name)
+    exp_name = FLAGS.exp_name_prefix + get_exp_name(FLAGS.seed)
+    run = setup_wandb(project='multitask_RL', group=FLAGS.run_group, name=exp_name)
     
     FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, FLAGS.env_name, exp_name)
     os.makedirs(FLAGS.save_dir, exist_ok=True)
     flag_dict = get_flag_dict()
-
     with open(os.path.join(FLAGS.save_dir, 'flags.json'), 'w') as f:
         json.dump(flag_dict, f)
 
@@ -93,7 +97,9 @@ def main(_):
             compact_dataset=False,
         )
     else:
-        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name)
+        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name, num_parallel_envs=FLAGS.eval_episodes) # for simplicity, make 1 thread/episode to eval
+    
+    print(f"Made env and datasets.Train dataset size: {train_dataset.size}", flush=True)
 
     # house keeping
     random.seed(FLAGS.seed)
@@ -134,6 +140,9 @@ def main(_):
             ds_dict["rewards"] = sparse_rewards
             ds = Dataset.create(**ds_dict)
 
+        if FLAGS.p_aug > 0.0:
+            ds.p_aug = FLAGS.p_aug
+
         return ds
     
     train_dataset = process_train_dataset(train_dataset)
@@ -160,8 +169,13 @@ def main(_):
         wandb_logger=wandb,
     )
 
+    # set up which eval function to use
+    evaluate = evaluate_libero if is_libero_env(FLAGS.env_name) else evaluate_others
+
     offline_init_time = time.time()
     # Offline RL
+    times_to_log_inputs = list(range(0, 1000, 1000 // FLAGS.num_input_output_to_log))
+    print(f"Starting training loop.")
     for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1)):
         log_step += 1
 
@@ -183,16 +197,21 @@ def main(_):
 
         if i % FLAGS.log_interval == 0:
             logger.log(offline_info, "offline_agent", step=log_step)
+
+        if i in times_to_log_inputs:
+            pass
+            to_log = get_sample_input_output_log_to_wandb(batch)
+            logger.log(to_log, "offline_agent", step=log_step)
         
         # saving
         if FLAGS.save_interval > 0 and i % FLAGS.save_interval == 0:
             save_agent(agent, FLAGS.save_dir, log_step)
 
-        # eval
-        if i == FLAGS.offline_steps - 1 or \
+        # eval: do one at very start, very end, and in b/w using eval_interval
+        if i == FLAGS.offline_steps - 1 or i == 2 or \
             (FLAGS.eval_interval != 0 and i % FLAGS.eval_interval == 0):
             # during eval, the action chunk is executed fully
-            eval_info, _, _ = evaluate(
+            eval_info, _, renders = evaluate(
                 agent=agent,
                 env=eval_env,
                 action_dim=example_batch["actions"].shape[-1],
@@ -200,6 +219,7 @@ def main(_):
                 num_video_episodes=FLAGS.video_episodes,
                 video_frame_skip=FLAGS.video_frame_skip,
             )
+            eval_info['video'] = get_wandb_video(renders)
             logger.log(eval_info, "eval", step=log_step)
 
     # transition from offline to online

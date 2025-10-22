@@ -34,6 +34,7 @@ def add_to(dict_of_lists, single_dict):
     for k, v in single_dict.items():
         dict_of_lists[k].append(v)
 
+## TODO(YY): use sticky gripper / binarize gripper dim from action...
 def evaluate(
     agent,
     env,
@@ -67,20 +68,24 @@ def evaluate(
     renders = []
     eval_env = env.get_eval_env()
     video_env = env.get_video_env()
-    for i in trange(num_eval_episodes + num_video_episodes):
+
+    
+    for i in trange(1 + num_video_episodes): # only 1 iteration for eval, since multiprocessed
         traj = defaultdict(list)
-        should_render = i >= num_eval_episodes
+        # should_render = i >= num_eval_episodes
+        should_render = i > 0
         if should_render:
             env = video_env
+            num_episodes_this_iter = 1
         else:
             env = eval_env
-
+            num_episodes_this_iter = num_eval_episodes
         observation, info = env.reset(), {}
             
         observation_history = []
         action_history = []
         
-        done = False
+        done = [False] * num_episodes_this_iter
         step = 0
         render = []
         action_chunk_lens = defaultdict(lambda: 0)
@@ -89,14 +94,16 @@ def evaluate(
 
         gripper_contact_lengths = []
         gripper_contact_length = 0
-        
-        while not done:
-            
+
+        # setup info dict for each episode outisde loop
+        info = [{} for _ in range(num_episodes_this_iter)]
+
+        while not all(done):
             action = actor_fn(observations=observation)
 
             if len(action_queue) == 0:
                 have_new_action = True
-                action = np.array(action).reshape(-1, action_dim)
+                action = np.array(action).reshape(num_episodes_this_iter, -1, action_dim).transpose(1, 0, 2) # since each elt of action queue should have shape (num_eval_episodes, action_dim)
                 action_chunk_len = action.shape[0]
                 for a in action:
                     action_queue.append(a)
@@ -107,22 +114,34 @@ def evaluate(
             if eval_gaussian is not None:
                 action = np.random.normal(action, eval_gaussian)
 
+            # before stepping, let's 0-out the actions for the envs that are done, since stepping() after done can potentially have undefined behavior
+            action_mask = 1 - np.array(done, dtype=np.float32)[:, np.newaxis]
+            action = action * action_mask
+            # if np.any(action_mask == 0):
+                # print(f"action mask: {action_mask} at timestep {step} ")
             next_observation, reward, done, info = env.step(np.clip(action, -1, 1)) # the done returned by env.step() already has 'or truncated' absorbed in
             step += 1
 
+            for inf in info:
+                info[int(inf['env_id'])] = inf
+
+        
+
             if should_render and (step % video_frame_skip == 0 or done):
                 frame = env.render().copy()
-                render.append(frame)
+                render.append(frame[0][::-1, ::-1]) # need to remove an extra dim added b/c the render-env is a subprocenv
+                # also need to flip inage, just like all other libero sims
 
-            transition = dict(
-                observation=observation,
-                next_observation=next_observation,
-                action=action,
-                reward=reward,
-                done=done,
-                info=info,
-            )
-            add_to(traj, transition)
+
+            # transition = dict(
+            #     observation=observation,
+            #     next_observation=next_observation,
+            #     action=action,
+            #     reward=reward,
+            #     done=done,
+            #     info=info,
+            # )
+            # add_to(traj, transition)
             
             observation = next_observation
             # print(info)
@@ -154,12 +173,13 @@ def evaluate(
             
         add_to(stats, {"avg_gripper_contact_length": avg_gripper_contact_length, "num_gripper_contacts": num_gripper_contacts})
 
-        if i < num_eval_episodes:
-            add_to(stats, flatten(info))
-            trajs.append(traj)
+        # print("ending info dicts: ", info)
+        if i == 0:
+            for inf in info:
+                add_to(stats, flatten(inf))
+            # trajs.append(traj)
         else:
             renders.append(np.array(render))
-
     for k, v in stats.items():
         stats[k] = np.mean(v)
 

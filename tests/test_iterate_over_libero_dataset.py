@@ -28,7 +28,5 @@ example_batch = train_dataset.sample(())
 start_time = time.time()
 for i in range(10_000):
     batch = train_dataset.sample_sequence(256, sequence_length=5, discount=0.99)
-    if i == 9_999:
-        import pdb; pdb.set_trace()
 end_time = time.time()
 print(f"Time taken to iterate over 10,000 batches: {end_time - start_time} seconds")

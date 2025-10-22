@@ -64,7 +64,7 @@ def get_flag_dict():
 
 
 def setup_wandb(
-    entity=None,
+    entity='yajatyadav',
     project='project',
     group=None,
     name=None,
@@ -151,3 +151,26 @@ def get_wandb_video(renders=None, n_cols=None, fps=15):
     renders = reshape_video(renders, n_cols)  # (t, c, nr * h, nc * w)
 
     return wandb.Video(renders, fps=fps, format='mp4')
+
+
+def convert_arr_to_wandb_table(arr, prefix):
+    return wandb.Table(columns=[f"{prefix}/{i}" for i in range(len(arr))], data=[arr.tolist()])
+
+
+def get_sample_input_output_log_to_wandb(batch):
+    """Get a sample input-output log to log to wandb."""
+    sample_obs = batch['observations'][0]
+    sample_action = batch['actions'][0]
+    sample_next_obs = batch['next_observations'][0]
+    sample_reward = batch['rewards'][0]
+    sample_terminal = batch['terminals'][0]
+    sample_mask = batch['masks'][0]
+
+    return {
+        'observations': convert_arr_to_wandb_table(sample_obs, 'observations'),
+        'actions': convert_arr_to_wandb_table(sample_action, 'actions'),
+        'next_observations': convert_arr_to_wandb_table(sample_next_obs, 'next_observations'),
+        'rewards': convert_arr_to_wandb_table(sample_reward, 'rewards'),
+        'terminals': convert_arr_to_wandb_table(sample_terminal, 'terminals'),
+        'masks': convert_arr_to_wandb_table(sample_mask, 'masks'),
+    }

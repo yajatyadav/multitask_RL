@@ -4,7 +4,7 @@ import pathlib
 import time
 from typing import List, Dict, Any
 import sys
-sys.path.insert(0, '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/libero') # TODO(YY): hack for now, set up submoduling later..
+sys.path.insert(0, '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/libero')
 from libero.libero import benchmark
 from libero.libero.envs import OffScreenRenderEnv, SubprocVectorEnv
 from libero.libero.utils import get_libero_path

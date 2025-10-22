@@ -88,7 +88,7 @@ class FrameStackWrapper(gymnasium.Wrapper):
         return self.get_observation(), reward, terminated, truncated, info
 
 
-def make_env_and_datasets(env_name, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5):
+def make_env_and_datasets(env_name, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5):
     """Make offline RL environment and datasets.
 
     Args:
@@ -139,12 +139,13 @@ def make_env_and_datasets(env_name, keys_to_load=None, frame_stack=None, action_
     elif env_name.startswith("libero"):
         #libero
         from envs import libero_utils
-        obs_keys_to_load = ['obs/ee_pos', 'obs/ee_ori', 'obs/gripper_states', 'states'] # 'states' is a vector of eef_state + flattened mujoco simulator state; right now we are keeping the timestep entry in the simullator-state vector!
+        obs_keys_to_load = ['states'] # 'states' is a vector of mj sim state. the wrapper drops the first entry, which is the timestep.
 
-        env = libero_utils.make_env(env_name, keys_to_load=obs_keys_to_load, seed=0)
-        eval_env = libero_utils.make_env(env_name, keys_to_load=obs_keys_to_load, seed=42)
-        env = EpisodeMonitor(env)
-        eval_env = EpisodeMonitor(eval_env)
+        env = libero_utils.make_env(env_name, num_parallel_envs=num_parallel_envs, keys_to_load=obs_keys_to_load, seed=0) # for now, online env will ALSO generate several parallel libero envs!
+        eval_env = libero_utils.make_env(env_name, num_parallel_envs=num_parallel_envs, keys_to_load=obs_keys_to_load, seed=42)
+        ## TODO(YY): removing this wrapper as eval wants raw eval object
+        # env = EpisodeMonitor(env)
+        # eval_env = EpisodeMonitor(eval_env)
         dataset = libero_utils.get_dataset(env, env_name, obs_keys_to_load) # keys_to_load to control what gets loaded in!
         train_dataset, val_dataset = dataset, None
     else:

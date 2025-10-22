@@ -11,16 +11,18 @@ import h5py
 from tqdm import tqdm
 
 # hack again for now
-import sys
-sys.path.insert(0, '/home/yajatyadav/multitask_reinforcement_learning/qc')
 from utils.datasets import Dataset
 
-
-sys.path.insert(0, '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/libero') # TODO(YY): hack for now, set up submoduling later..
-from libero.libero.envs.env_wrapper import ControlEnv, OffScreenRenderEnv # Use ControlEnv directly
+import sys
+sys.path.insert(0, os.path.join(os.getcwd(), 'libero'))
+from libero.libero.envs.env_wrapper import ControlEnv, OffScreenRenderEnv
 from libero.libero.utils import get_libero_path
 from libero.libero.envs import SubprocVectorEnv
 from libero.libero import benchmark
+
+
+LIBERO_WARMUP_STEPS = 15
+
 
 def is_libero_env(env_name):
     """determine if an env is libero"""
@@ -42,7 +44,7 @@ def _get_max_episode_length(env_name):
         raise ValueError(f"Unsupported environment: {env_name}")
 
 def _get_normalization_path(env_name):
-    ## TODO(YY): need to implememt this!
+    ## TODO(YY): need to implememt this, redo norm_stats computation to instead np.save() with keys as expected by normalize_obs and unnormalize_action below!!
     return None
 
 def make_env(env_name, num_parallel_envs, render_resolution=128, keys_to_load=[], seed=0):
@@ -101,9 +103,15 @@ def get_dataset(env, env_name, keys_to_load):
         a = np.array(rm_dataset["data/{}/actions".format(ep)])
         obs, next_obs = [], []
         for k in keys_to_load:
-            obs.append(np.array(rm_dataset[f"data/{ep}/{k}"]))
+            if k == 'states':
+                obs.append(np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]) # drop the first entry, which is the timestep
+            else:
+                obs.append(np.array(rm_dataset[f"data/{ep}/{k}"]))
         for k in keys_to_load:
-            obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])
+            if k == 'states':
+                obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]
+            else:
+                obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])
             next_obs.append(np.concatenate([obs_array[1:], obs_array[-1:]], axis=0)) # make next obs by shifting obs array by 1, and then repeating the last element of obs array so obs and next_obs have same size
         obs = np.concatenate(obs, axis=-1)
         next_obs = np.concatenate(next_obs, axis=-1)
@@ -276,7 +284,6 @@ class LiberoEnvWrapper(gym.Env):
             self.seed(seed=new_seed)
 
         # Reset environment
-        ## TODO(YY): set up passing in init_state, actually might be too much work, can just keep it random reset()
         if self.init_state is not None:
             # Reset to specific state
             obs = self.env.set_init_state(self.init_state)
@@ -285,12 +292,12 @@ class LiberoEnvWrapper(gym.Env):
             obs = self.env.reset()
 
         ## take env.step() with dummy action for 15 steps to wait for objects to settle into place
-        for _ in range(15):
+        for _ in range(LIBERO_WARMUP_STEPS):
             obs, reward, done, info = self.step([0.0] * 6 + [-1.0])
 
         # Get processed observation and return only the observation (not a tuple)
         # This is for compatibility with older gym environments that SubprocVectorEnv expects
-        return self.get_observation() ## TODO(YY): used to be return obs, {}; but removed the empty dict for SubProcVectorEnv compatibility - add back this empty dict in the caller functions
+        return self.get_observation() ## used to be return obs, {}; but removed the empty dict for SubProcVectorEnv compatibility - add back this empty dict in the caller functions
 
     def step(self, action):
         """Step the environment"""
@@ -298,14 +305,7 @@ class LiberoEnvWrapper(gym.Env):
             action = self.unnormalize_action(action)
         
         # Step the environment
-        raw_obs, reward, done, info = self.env.step(action)
-
-        # raw_obs = np.concatenate([raw_obs[key] for key in self.obs_keys], axis=0)
-        # if self.normalize:
-        #     obs = self.normalize_obs(raw_obs)
-        # else:
-        #     obs = raw_obs
-        
+        raw_obs, reward, done, info = self.env.step(action)        
         # Get processed observation
         obs = self.get_observation()
 
@@ -332,15 +332,13 @@ class LiberoEnvWrapper(gym.Env):
             truncated = True
             done = True  # Mark as done for older gym compatibility
 
-        # TODO(YY): Return in old gym format (obs, reward, done, info) for SubprocVectorEnv compatibility, instead of (obs, reward, done, truncated, info)
+        ##  Return in old gym format (obs, reward, done, info) for SubprocVectorEnv compatibility, instead of (obs, reward, done, truncated, info)
         return obs, reward, done, info
     
 
-    # TODO(YY): render() should work if the base env is offscreenrender, but should assert an error if the base env is norenderenv!!
-    def render(self, mode="rgb_array"):
+    def render(self,):
         """Render the environment (disabled for NoRenderEnv compatibility)"""
         # Since we're using NoRenderEnv, rendering is disabled
-        # Return a blank image to maintain API compatibility
         if not self.can_render:
             raise ValueError("Rendering is disabled for this environment")
         else:
@@ -360,7 +358,6 @@ class LiberoEnvWrapper(gym.Env):
     #         # If not a segmentation env, return as-is
     #         return segmentation_image
     
-    ## TODO(YY): shoul we drop the first 15 entries? entry 0 is timestep, next 7 are FS robot0_joint_pos, and next 7 i think are robot vel? THese are correlated features with obs/ee_state, ee_ori, etc. that we are also passing and concatenating...
     def get_sim_state(self):
         """Get current simulation state"""
         return self.env.get_sim_state()
@@ -390,8 +387,30 @@ class LiberoEnvWrapper(gym.Env):
 # Factory Function - Create wrapped LIBERO environments
 # ============================================================================
 
+def get_libero_task_init_states(
+    env_name
+):
+    """Get the initial states for a given libero task"""
+    if env_name.startswith("libero_90") or env_name.startswith("libero_10"):
+        suite_str, scene_str, task_str = env_name.split("-", 2)
+    else:
+        suite_str, task_str = env_name.split("-", 1)
+        scene_str = ''
+    task_suite = benchmark.get_benchmark_dict()[suite_str]()
+    num_tasks_in_suite = task_suite.n_tasks
+    desired_task_name = f"{scene_str.upper()}_{task_str}" if scene_str else task_str.upper()
+    initial_states = None
+    for task_id in range(num_tasks_in_suite):
+        candidate_task = task_suite.get_task(task_id)
+        if candidate_task.name == desired_task_name:
+            initial_states = task_suite.get_task_init_states(task_id)
+            break
+    return initial_states
+
+
 def make_libero_env(
     env_name,
+    initial_state,
     render=False,
     render_resolution=128,
     obs_keys=[
@@ -464,6 +483,7 @@ def make_libero_env(
         max_episode_length=max_episode_length,
         can_render=render,
         render_hw=(render_resolution, render_resolution),
+        init_state=initial_state,
     )
     
     return wrapped_env
@@ -482,24 +502,16 @@ class LiberoTopLevelEnvWrapper(gym.Env):
             "robot0_eef_quat", 
             "robot0_gripper_qpos",
         ],
-        init_state=None, ## TODO(YY): support passing init states upon reset...
         render_resolution=128,
         max_episode_length=500,
-    ):
-        self.offscreen_env = make_libero_env(
-            env_name=env_name,
-            render=True,
-            render_resolution=render_resolution,
-            max_episode_length=max_episode_length,
-            obs_keys=obs_keys,
-            normalization_path=normalization_path,
-            seed=seed
-        )
-        
-        def make_env_fn(env_name, render, render_resolution, max_episode_length, obs_keys, normalization_path, seed_val):
+    ):        
+        all_initial_states = get_libero_task_init_states(env_name) # pull all starting init states for this task, and distribute to all workers
+        # all_initial_states = [None] * num_parallel_envs
+        def make_env_fn(env_name, initial_state, render, render_resolution, max_episode_length, obs_keys, normalization_path, seed_val):
             def _init():
                 return make_libero_env(
                     env_name=env_name,
+                    initial_state=initial_state,
                     render=render,
                     render_resolution=render_resolution,
                     max_episode_length=max_episode_length,
@@ -508,13 +520,21 @@ class LiberoTopLevelEnvWrapper(gym.Env):
                     seed=seed_val
                 )
             return _init
+        
+        # for consistency, the offscreen-env used for video rendering will still be a subprocenv just with 1 subprocess
+        offscreen_env_fn = [
+            make_env_fn(env_name, all_initial_states[0], True, render_resolution, max_episode_length, obs_keys, normalization_path, seed)
+        ]
+        
         # list of functions that when called, will create identical eval envs w/ just different seeds
         vec_env_fns = [
-            make_env_fn(env_name, False, render_resolution, max_episode_length, obs_keys, normalization_path, seed + i + 1)
+            make_env_fn(env_name, all_initial_states[(i + 1) % len(all_initial_states)], False, render_resolution, max_episode_length, obs_keys, normalization_path, seed + i + 1)
             for i in range(num_parallel_envs)
             ]
         self.vec_env = SubprocVectorEnv(vec_env_fns)
 
+        
+        self.offscreen_env = SubprocVectorEnv(offscreen_env_fn)
     def get_eval_env(self):
         return self.vec_env
     
