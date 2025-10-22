@@ -44,7 +44,7 @@ flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
 flags.DEFINE_float('discount', 0.99, 'discount factor')
 
 flags.DEFINE_integer('eval_episodes', 50, 'Number of evaluation episodes.')
-flags.DEFINE_integer('video_episodes', 0, 'Number of video episodes for each task.')
+flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
 config_flags.DEFINE_config_file('agent', 'agents/acfql.py', lock_config=False)
@@ -199,7 +199,6 @@ def main(_):
             logger.log(offline_info, "offline_agent", step=log_step)
 
         if i in times_to_log_inputs:
-            pass
             to_log = get_sample_input_output_log_to_wandb(batch)
             logger.log(to_log, "offline_agent", step=log_step)
         

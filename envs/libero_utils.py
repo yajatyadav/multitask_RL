@@ -505,8 +505,9 @@ class LiberoTopLevelEnvWrapper(gym.Env):
         render_resolution=128,
         max_episode_length=500,
     ):        
-        all_initial_states = get_libero_task_init_states(env_name) # pull all starting init states for this task, and distribute to all workers
-        # all_initial_states = [None] * num_parallel_envs
+        # TODO(YY): uncommenting this line causes that weird red ball + green line coming from robot arm issue (might just be an artifact...)
+        # all_initial_states = get_libero_task_init_states(env_name) # pull all starting init states for this task, and distribute to all workers
+        all_initial_states = [None] * num_parallel_envs
         def make_env_fn(env_name, initial_state, render, render_resolution, max_episode_length, obs_keys, normalization_path, seed_val):
             def _init():
                 return make_libero_env(
