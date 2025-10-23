@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:A5000:1
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -c 8
+#SBATCH -c 16
 #SBATCH --qos=rail_gpu4_high
 #SBATCH -t 24:00:00
 #SBATCH --mem=60G
@@ -16,12 +16,12 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=best_of_128__ \
---run_group=QCFQL_best_of_128_ \
+--exp_name_prefix=brc_debug_multiproc_ \
+--run_group=brc_debug_multiproc_ \
 --env_name=libero_90-study_scene1-pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy \
 \
 --online_steps=0 \
 --eval_interval=100000 \
+--num_parallel_envs=10 \
 \
 --agent.actor_type=best-of-n \
---agent.actor_num_samples=16 \
