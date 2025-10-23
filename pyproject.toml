@@ -7,7 +7,7 @@ name = "multitask_RL"
 version = "0.1.0"
 description = "Repository for multitask RL, using the QC codebase."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10, <3.12"
 authors = [
     {name = "Yajat Yadav", email = "yyajat@gmail.com"}  # Replace with your info
 ]

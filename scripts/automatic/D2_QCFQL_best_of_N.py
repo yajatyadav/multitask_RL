@@ -3,21 +3,20 @@ import numpy as np
 
 def main():
     num_job_group = 1
-    sh_command = 'scripts/automation/run.sh'
+    sh_command = 'scripts/automatic/run.sh'
     wandb_env_variables = 'WANDB_SERVICE_WAIT=86400 WANDB_NETWORK_TIMEOUT=600 WANDB_FILE_TRANSFER_TIMEOUT=1200 WANDB_INIT_TIMEOUT=300 WANDB_HTTP_TIMEOUT=600 WANDB_RETRY_ATTEMPTS=15 WANDB_RETRY_WAIT_MIN=5 WANDB_RETRY_WAIT_MAX=120 '
     pre_sbatch_command = f'{wandb_env_variables} MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 NUMEXPR_NUM_THREADS=1 '
-    num_groups = 4
-    num_cpus = 1
+    num_groups = 1
+    num_cpus = 8
     qos = 'high'
     sbatch_command = f'-A co_rail -p savio4_gpu --gres=gpu:A5000:1 -N 1 -n {num_groups} -c {num_cpus} --qos=rail_gpu4_{qos} -t 12:00:00 --mem=60G --requeue '
-    python_command = 'uv run scripts/train_offline.py '
+    python_command = 'uv run main.py '
 
     run_group = os.path.splitext(os.path.basename(__file__))[0]
 
     print(run_group)
 
     default_args = dict(
-        batch_size=256,
         run_group=run_group,
         online_steps=0,
         eval_interval=100_000,
@@ -26,7 +25,6 @@ def main():
         eval_episodes=50,
         video_episodes=5,
         horizon_length=5,
-        actor_type="best-of-n",
         env_name='libero_90-study_scene1-pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy'
     )
 
@@ -53,6 +51,8 @@ def main():
                                         base_dict,
                                         seed=seed,
                                         agent=agent,
+                                        agentIbatch_size=256,
+                                        agentIactor_type='best-of-n',
                                         agentInum_qs=num_qs,
                                         agentIflow_steps=flow_steps,
                                         agentInormalize_q_loss=normalize_q_loss,
