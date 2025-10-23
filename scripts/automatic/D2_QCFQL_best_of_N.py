@@ -20,6 +20,7 @@ def main():
         run_group=run_group,
         online_steps=0,
         eval_interval=100_000,
+        num_parallel_envs=5, # can't go too crazy with this, brc crashes otherwise
         save_interval=-1,
         log_interval=5_000,
         eval_episodes=50,
