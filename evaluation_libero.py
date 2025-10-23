@@ -38,6 +38,7 @@ def add_to(dict_of_lists, single_dict):
 def evaluate(
     agent,
     env,
+    num_parallel_envs,
     num_eval_episodes=50,
     num_video_episodes=0,
     video_frame_skip=3,
@@ -52,6 +53,7 @@ def evaluate(
     Args:
         agent: Agent.
         env: Environment.
+        num_parallel_envs: Number of parallel environments for evaluation, this lets us know how many base envs env actually has.
         num_eval_episodes: Number of episodes to evaluate the agent.
         num_video_episodes: Number of episodes to render. These episodes are not included in the statistics.
         video_frame_skip: Number of frames to skip between renders.
@@ -69,17 +71,20 @@ def evaluate(
     eval_env = env.get_eval_env()
     video_env = env.get_video_env()
 
+    assert num_eval_episodes % num_parallel_envs == 0, "num_eval_episodes must be divisible by num_parallel_envs"
+    num_eval_iterations = num_eval_episodes // num_parallel_envs
+    num_video_iterations = num_video_episodes
     
-    for i in trange(1 + num_video_episodes): # only 1 iteration for eval, since multiprocessed
+    for i in trange(num_eval_iterations + num_video_iterations): # only 1 iteration for eval, since multiprocessed
         traj = defaultdict(list)
         # should_render = i >= num_eval_episodes
-        should_render = i > 0
+        should_render = i >= num_eval_iterations
         if should_render:
             env = video_env
             num_episodes_this_iter = 1
         else:
             env = eval_env
-            num_episodes_this_iter = num_eval_episodes
+            num_episodes_this_iter = num_parallel_envs
         observation, info = env.reset(), {}
             
         observation_history = []
@@ -124,7 +129,6 @@ def evaluate(
 
             for inf in info:
                 info[int(inf['env_id'])] = inf
-
         
 
             if should_render and (step % video_frame_skip == 0 or done):
@@ -174,12 +178,15 @@ def evaluate(
         add_to(stats, {"avg_gripper_contact_length": avg_gripper_contact_length, "num_gripper_contacts": num_gripper_contacts})
 
         # print("ending info dicts: ", info)
-        if i == 0:
+        # after this iter finishes, either add all inf dicts into stats, or add the render to the renders list
+        if i < num_eval_iterations:
             for inf in info:
                 add_to(stats, flatten(inf))
             # trajs.append(traj)
         else:
             renders.append(np.array(render))
+    
+    # aggregate stats over all iterations
     for k, v in stats.items():
         stats[k] = np.mean(v)
 

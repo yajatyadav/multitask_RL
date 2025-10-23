@@ -44,6 +44,7 @@ flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
 flags.DEFINE_float('discount', 0.99, 'discount factor')
 
 flags.DEFINE_integer('eval_episodes', 50, 'Number of evaluation episodes.')
+flags.DEFINE_integer('num_parallel_envs', 50, 'Number of parallel environments for evaluation.')
 flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
@@ -97,7 +98,7 @@ def main(_):
             compact_dataset=False,
         )
     else:
-        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name, num_parallel_envs=FLAGS.eval_episodes) # for simplicity, make 1 thread/episode to eval
+        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name, num_parallel_envs=FLAGS.num_parallel_envs)
     
     print(f"Made env and datasets.Train dataset size: {train_dataset.size}", flush=True)
 
@@ -216,6 +217,7 @@ def main(_):
                 action_dim=example_batch["actions"].shape[-1],
                 num_eval_episodes=FLAGS.eval_episodes,
                 num_video_episodes=FLAGS.video_episodes,
+                num_parallel_envs=FLAGS.num_parallel_envs,
                 video_frame_skip=FLAGS.video_frame_skip,
             )
             eval_info['video'] = get_wandb_video(renders)
