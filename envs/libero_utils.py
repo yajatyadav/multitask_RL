@@ -8,6 +8,7 @@ import gymnasium as gym
 from gymnasium.spaces import Box
 import imageio
 import h5py
+import glob
 from tqdm import tqdm
 
 # hack again for now
@@ -53,7 +54,26 @@ def make_env(env_name, num_parallel_envs, render_resolution=128, keys_to_load=[]
     """
     normalization_path = _get_normalization_path(env_name)
     max_episode_length = _get_max_episode_length(env_name)
-    env = LiberoTopLevelEnvWrapper(env_name, seed, num_parallel_envs=num_parallel_envs, render_resolution=render_resolution, obs_keys=keys_to_load, max_episode_length=max_episode_length, normalization_path=normalization_path)
+
+    # eval-time keys look different from those in the training dataset, they are:
+    # raw_obs: odict_keys(['robot0_joint_pos', 'robot0_joint_pos_cos', 'robot0_joint_pos_sin', 'robot0_joint_vel', 'robot0_eef_pos', 'robot0_eef_quat', 'robot0_gripper_qpos', 'robot0_gripper_qvel', 'akita_black_bowl_1_pos', 'akita_black_bowl_1_quat', 'akita_black_bowl_1_to_robot0_eef_pos', 'akita_black_bowl_1_to_robot0_eef_quat', 'akita_black_bowl_2_pos', 'akita_black_bowl_2_quat', 'akita_black_bowl_2_to_robot0_eef_pos', 'akita_black_bowl_2_to_robot0_eef_quat', 'akita_black_bowl_3_pos', 'akita_black_bowl_3_quat', 'akita_black_bowl_3_to_robot0_eef_pos', 'akita_black_bowl_3_to_robot0_eef_quat', 'plate_1_pos', 'plate_1_quat', 'plate_1_to_robot0_eef_pos', 'plate_1_to_robot0_eef_quat', 'robot0_proprio-state', 'object-state'])😛 keys to load: ['agentview_rgb', 'eye_in_hand_rgb']
+
+
+    # env keys should remove the 'obs/' prefix
+    old_to_new_key = {
+        'obs/agentview_rgb': 'agentview_image',
+        'obs/eye_in_hand_rgb': 'robot0_eye_in_hand_image',
+        'obs/ee_pos': 'robot0_eef_pos',
+        'obs/ee_ori': 'robot0_eef_quat', # TODO(YY): convert to axis angle
+        'obs_gripper_states': 'robot0_gripper_qpos',
+        'states': 'states',
+    }
+    keys_to_load = {old_to_new_key[k] for k in keys_to_load}
+    # if any key is a image key, we can no longer use NoRenderEnv, and must use OffScreenRenderEnv
+    eval_need_camera_obs = any('image' in k for k in keys_to_load)
+
+
+    env = LiberoTopLevelEnvWrapper(env_name, seed, eval_need_camera_obs=eval_need_camera_obs, num_parallel_envs=num_parallel_envs, render_resolution=render_resolution, obs_keys=keys_to_load, max_episode_length=max_episode_length, normalization_path=normalization_path)
     return env
 
 def _check_dataset_exists(env_name):
@@ -75,56 +95,80 @@ def _check_dataset_exists(env_name):
     
     return dataset_path
 
-def get_dataset(env, env_name, keys_to_load):
-    dataset_path = _check_dataset_exists(env_name)
-
-    rm_dataset = h5py.File(dataset_path, "r")
-    demos = list(rm_dataset["data"].keys())
-    num_demos = len(demos)
-    inds = np.argsort([int(elem[5:]) for elem in demos])
-    demos = [demos[i] for i in inds]
-
-    num_timesteps = 0
-    for ep in demos:
-        num_timesteps += int(rm_dataset[f"data/{ep}/actions"].shape[0])
-
-    print(f"the size of the dataset is {num_timesteps}")
-    # example_action = env.action_space.sample() ## can't do this as 'env' is a collection of 2 envs, that will be unpacked during eval time...
-
-    # data holder
+def get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load):
+    # data holders
     observations = []
     actions = []
     next_observations = []
     terminals = []
     rewards = []
     masks = []
+
+    def process_task(rm_dataset, is_positive_task):
+        demos = list(rm_dataset["data"].keys())
+        inds = np.argsort([int(elem[5:]) for elem in demos])
+        demos = [demos[i] for i in inds] # sort demos!
+
+        this_task_num_timesteps = 0
+        for ep in demos:
+            a = np.array(rm_dataset["data/{}/actions".format(ep)])
+            this_task_num_timesteps += a.shape[0]
+            obs, next_obs = [], []
+            for k in keys_to_load:
+                if k == 'states':
+                    obs.append(np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]) # drop the first entry, which is the timestep
+                else:
+                    obs.append(np.array(rm_dataset[f"data/{ep}/{k}"]))
+            for k in keys_to_load:
+                if k == 'states':
+                    obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]
+                else:
+                    obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])
+                next_obs.append(np.concatenate([obs_array[1:], obs_array[-1:]], axis=0)) # make next obs by shifting obs array by 1, and then repeating the last element of obs array so obs and next_obs have same size
+            obs = np.concatenate(obs, axis=-1)
+            next_obs = np.concatenate(next_obs, axis=-1)
+            dones = np.array(rm_dataset["data/{}/dones".format(ep)])
+
+            # read in rewards, and set all to -1 if not positive task
+            r = np.array(rm_dataset["data/{}/rewards".format(ep)], dtype=np.float32)
+            if not is_positive_task:
+                r = np.full_like(r, -1.0)
+
+            # append to data holders
+            observations.append(obs.astype(np.float32))
+            actions.append(a.astype(np.float32))
+            rewards.append(r.astype(np.float32))
+            terminals.append(dones.astype(np.float32))
+            masks.append(1.0 - dones.astype(np.float32))
+            next_observations.append(next_obs.astype(np.float32))
+        return this_task_num_timesteps
+
     
-    # go through and add to the data holder; TODO(YY): only works for state-based observations right now...need to adapt later so keys_to_load can also specify 'obs/agentview_rgb' and 'obs/eye_in_hand_rgb'!
-    for ep in demos:
-        a = np.array(rm_dataset["data/{}/actions".format(ep)])
-        obs, next_obs = [], []
-        for k in keys_to_load:
-            if k == 'states':
-                obs.append(np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]) # drop the first entry, which is the timestep
-            else:
-                obs.append(np.array(rm_dataset[f"data/{ep}/{k}"]))
-        for k in keys_to_load:
-            if k == 'states':
-                obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]
-            else:
-                obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])
-            next_obs.append(np.concatenate([obs_array[1:], obs_array[-1:]], axis=0)) # make next obs by shifting obs array by 1, and then repeating the last element of obs array so obs and next_obs have same size
-        obs = np.concatenate(obs, axis=-1)
-        next_obs = np.concatenate(next_obs, axis=-1)
-        dones = np.array(rm_dataset["data/{}/dones".format(ep)])
-        r = np.array(rm_dataset["data/{}/rewards".format(ep)])
-        
-        observations.append(obs.astype(np.float32))
-        actions.append(a.astype(np.float32))
-        rewards.append(r.astype(np.float32))
-        terminals.append(dones.astype(np.float32))
-        masks.append(1.0 - dones.astype(np.float32))
-        next_observations.append(next_obs.astype(np.float32))
+    # crawl through env_name directory, and add each task's demos
+    num_timesteps = 0
+    libero_dataset_dir = os.path.join(os.path.dirname(os.getcwd()), 'datasets/raw_libero')
+    suite, scene = env_name.split("-")
+    env_demos_path = os.path.join(libero_dataset_dir, suite.upper())
+    pattern = os.path.join(env_demos_path, f"{scene.upper()}*.hdf5")
+    for filepath in sorted(glob.glob(pattern)):
+        this_task_name = os.path.basename(filepath).split(".")[0][:-5] # remove .hdf5 and _demo to get scene+task name separated by underscores
+        this_task_name = "_".join(this_task_name.split("_")[2:]) # remove the scene prefix to get just task name separated by underscores
+        _check_dataset_exists(f"{env_name}-{this_task_name}")
+        is_positive_task = this_task_name == task_name # we will flip reward sign if using demos from same scene but for different task
+
+        # if augment_negative_demos is disabled, we will skip datasets for tasks corresponding to other tasks in the same scene
+        if not augment_negative_demos and not is_positive_task:
+            continue
+
+        # get the dataset for this task, and process these task demos
+        rm_dataset = h5py.File(filepath, "r")
+        this_task_num_timesteps = process_task(rm_dataset, is_positive_task)
+        num_timesteps += this_task_num_timesteps
+        print(f"the size of the dataset for task {this_task_name} is {this_task_num_timesteps}, and {is_positive_task=}")
+
+    
+    print(f"the total size of the dataset is {num_timesteps}")
+    # once all done, create the dataset object
     return Dataset.create(
         observations=np.concatenate(observations, axis=0),
         actions=np.concatenate(actions, axis=0),
@@ -141,7 +185,7 @@ def get_dataset(env, env_name, keys_to_load):
 class NoRenderEnv(ControlEnv):
     """
     LIBERO environment without any rendering capabilities.
-    This is the most compatible option for multiprocessing.
+    This is the most compatible option for multiprocessing + testing state-based evals massively in parallel!.
     """
     
     def __init__(self, **kwargs):
@@ -167,11 +211,7 @@ class LiberoEnvWrapper(gym.Env):
         self,
         env,
         normalization_path=None,
-        obs_keys=[
-            "robot0_eef_pos",
-            "robot0_eef_quat", 
-            "robot0_gripper_qpos",
-        ],
+        obs_keys=[],
         clamp_obs=False,
         init_state=None,
         can_render=False,
@@ -237,12 +277,14 @@ class LiberoEnvWrapper(gym.Env):
     def unnormalize_action(self, action):
         action = (action + 1) / 2  # [-1, 1] -> [0, 1]
         return action * (self.action_max - self.action_min) + self.action_min
+    
 
+    ## TODO(YY): update to use quat2axis if proprio is one of the keys to load!!
     def get_observation(self):
         """Extract and concatenate relevant observation keys"""
         raw_obs = self.env.env._get_observations()
+        # print(f"raw_obs: {raw_obs.keys()}😛 keys to load: {self.obs_keys}")
         obs_to_return = []
-        
         for key in self.obs_keys:
             if key == 'states':
                 sim_state = self.get_sim_state()
@@ -414,11 +456,7 @@ def make_libero_env(
     initial_state,
     render=False,
     render_resolution=128,
-    obs_keys=[
-        "robot0_eef_pos",
-        "robot0_eef_quat",
-        "robot0_gripper_qpos",
-    ],
+    obs_keys=[],
     normalization_path=None,
     max_episode_length=500,
     seed=0,
@@ -496,13 +534,10 @@ class LiberoTopLevelEnvWrapper(gym.Env):
         self,
         env_name, # a string!!
         seed,
+        eval_need_camera_obs,
         num_parallel_envs,
         normalization_path=None,
-        obs_keys=[
-            "robot0_eef_pos",
-            "robot0_eef_quat", 
-            "robot0_gripper_qpos",
-        ],
+        obs_keys=[],
         render_resolution=128,
         max_episode_length=500,
     ):        
@@ -527,10 +562,13 @@ class LiberoTopLevelEnvWrapper(gym.Env):
         offscreen_env_fn = [
             make_env_fn(env_name, all_initial_states[0], True, render_resolution, max_episode_length, obs_keys, normalization_path, seed)
         ]
+
+        if eval_need_camera_obs:
+            assert num_parallel_envs == 1, "cannot parallelize eval environment as you have requested camera observations. Please pass num_parallel_envs as 1."
         
         # list of functions that when called, will create identical eval envs w/ just different seeds
         vec_env_fns = [
-            make_env_fn(env_name, all_initial_states[(i + 1) % len(all_initial_states)], False, render_resolution, max_episode_length, obs_keys, normalization_path, seed + i + 1)
+            make_env_fn(env_name, all_initial_states[(i + 1) % len(all_initial_states)], eval_need_camera_obs, render_resolution, max_episode_length, obs_keys, normalization_path, seed + i + 1)
             for i in range(num_parallel_envs)
             ]
         self.vec_env = SubprocVectorEnv(vec_env_fns)

@@ -187,7 +187,7 @@ class ACFQLAgent(flax.struct.PyTreeNode):
                     self.config["actor_num_samples"], action_dim
                 ),
             )
-            observations = jnp.repeat(observations[..., None, :], self.config["actor_num_samples"], axis=-2)
+            observations = jnp.repeat(observations[:, None, ...], self.config["actor_num_samples"], axis=1) ## YY: changed adding none to axis=1, and repeating along axis=1 (from axis=-2) so that images work
             actions = self.compute_flow_actions(observations, noises)
             actions = jnp.clip(actions, -1, 1)
             if self.config["q_agg"] == "mean":

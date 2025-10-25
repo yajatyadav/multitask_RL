@@ -16,20 +16,21 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=test_kitchen_scene2_open_the_top_drawer_of_the_cabinet_augment_negative_demos_False_best_of_1 \
+--exp_name_prefix=test_PIXELS_baseandwristcam_kitchen_scene2_open_the_top_drawer_of_the_cabinet_augment_negative_demos_False_best_of_1 \
 --run_group=debug_kitchen_scene_2_singletask_ \
 --env_name=libero_90-kitchen_scene2 \
 --task_name=open_the_top_drawer_of_the_cabinet \
 --augment_negative_demos=False \
 \
---use_pixels=False \
+--use_pixels=True \
 --use_proprio=False \
---use_mj_sim_state=True \
+--use_mj_sim_state=False \
 \
 --online_steps=0 \
 --eval_interval=50000 \
---num_parallel_envs=50 \
---video_episodes=0 \
+--num_parallel_envs=1 \
+--video_episodes=1 \
 \
 --agent.actor_type=best-of-n \
 --agent.actor_num_samples=1 \
+--agent.encoder=impala_debug \

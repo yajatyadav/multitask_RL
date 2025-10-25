@@ -1,0 +1,16 @@
+> /home/yajatyadav/multitask_reinforcement_learning/multitask_RL/envs/libero_utils.py(75)make_env()
+-> eval_need_camera_obs = any('image' in k for k in keys_to_load)
+(Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) (Pdb) (Pdb) 
+
+
+
+raw_obs: odict_keys(['robot0_joint_pos', 'robot0_joint_pos_cos', 'robot0_joint_pos_sin', 'robot0_joint_vel', 'robot0_eef_pos', 'robot0_eef_quat', 'robot0_gripper_qpos', 'robot0_gripper_qvel', 'agentview_image', 'robot0_eye_in_hand_image', 'akita_black_bowl_1_pos', 'akita_black_bowl_1_quat', 'akita_black_bowl_1_to_robot0_eef_pos', 'akita_black_bowl_1_to_robot0_eef_quat', 'akita_black_bowl_2_pos', 'akita_black_bowl_2_quat', 'akita_black_bowl_2_to_robot0_eef_pos', 'akita_black_bowl_2_to_robot0_eef_quat', 'akita_black_bowl_3_pos', 'akita_black_bowl_3_quat', 'akita_black_bowl_3_to_robot0_eef_pos', 'akita_black_bowl_3_to_robot0_eef_quat', 'plate_1_pos', 'plate_1_quat', 'plate_1_to_robot0_eef_pos', 'plate_1_to_robot0_eef_quat', 'robot0_proprio-state', 'object-state'])😛 keys to load: ['agentview_image', 'eye_in_hand_image']
+Process Process-1:
+Traceback (most recent call last):
+  File "/home/y

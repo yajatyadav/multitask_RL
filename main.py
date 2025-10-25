@@ -25,7 +25,9 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('exp_name_prefix', '', 'Experiment name prefix.')
 flags.DEFINE_string('run_group', 'Debug', 'Run group.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
-flags.DEFINE_string('env_name', 'cube-triple-play-singletask-task2-v0', 'Environment (dataset) name.')
+flags.DEFINE_string('env_name', 'libero_90-kitchen_scene2', 'Environment (dataset) name.')
+flags.DEFINE_string('task_name', '', 'Task name.')
+flags.DEFINE_bool('augment_negative_demos', False, 'Whether to augment negative demos from other tasks in the same scene.')
 flags.DEFINE_string('save_dir', 'exp/', 'Save directory.')
 
 flags.DEFINE_integer('offline_steps', 1000000, 'Number of online steps.')
@@ -37,6 +39,9 @@ flags.DEFINE_integer('eval_interval', 100000, 'Evaluation interval.')
 flags.DEFINE_integer('save_interval', -1, 'Save interval.')
 flags.DEFINE_integer('start_training', 5000, 'when does training start')
 
+flags.DEFINE_boolean('use_pixels', False, 'Whether to use pixels as observations during training and evaluation.')
+flags.DEFINE_boolean('use_proprio', False, 'Whether to use EEF proprio as observations during training and evaluation.')
+flags.DEFINE_boolean('use_mj_sim_state', False, 'Whether to use MJ sim state as observations during training and evaluation.')
 flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
 
 flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
@@ -98,7 +103,14 @@ def main(_):
             compact_dataset=False,
         )
     else:
-        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name, num_parallel_envs=FLAGS.num_parallel_envs)
+        keys_to_load = []
+        if FLAGS.use_pixels:
+            keys_to_load.extend(['obs/agentview_rgb', 'obs/eye_in_hand_rgb']) # use 2 cam images
+        if FLAGS.use_proprio:
+            keys_to_load.extend(['obs/ee_pos', 'obs/ee_ori', 'obs_gripper_states']) # use EEF proprio
+        if FLAGS.use_mj_sim_state:
+            keys_to_load.extend(['states']) # use MJ sim state
+        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name, FLAGS.task_name, FLAGS.augment_negative_demos, num_parallel_envs=FLAGS.num_parallel_envs, keys_to_load=keys_to_load)
     
     print(f"Made env and datasets.Train dataset size: {train_dataset.size}", flush=True)
 
@@ -128,7 +140,7 @@ def main(_):
                 **{k: v[:new_size] for k, v in ds.items()}
             )
         
-        if is_robomimic_env(FLAGS.env_name) or is_libero_env(FLAGS.env_name): # use -1/0 rewarding for robomimic and libero
+        if is_robomimic_env(FLAGS.env_name) or is_libero_env(FLAGS.env_name): # use -1/0 rewarding (-2 for any transition from other tasks' demos) for robomimic and libero
             penalty_rewards = ds["rewards"] - 1.0
             ds_dict = {k: v for k, v in ds.items()}
             ds_dict["rewards"] = penalty_rewards
@@ -148,6 +160,11 @@ def main(_):
     
     train_dataset = process_train_dataset(train_dataset)
     example_batch = train_dataset.sample(())
+    ## TODO(YY): hacky-way to handle images- .sample() returns then as (128, 128, 6) instead of (1, 128, 128, 6)
+    ## we also cannot use .sample_sequence() for init as that adds a horizon dim
+    ## can move this logic into the dataset libero_util func later, but works for now....
+    print(f"Initializing with obs shape: {example_batch['observations'].shape}")
+    print(f"Initializing with actions shape: {example_batch['actions'].shape}")
     
     agent_class = agents[config['agent_name']]
     agent = agent_class.create(
@@ -193,8 +210,8 @@ def main(_):
             train_dataset = process_train_dataset(train_dataset)
 
         batch = train_dataset.sample_sequence(config['batch_size'], sequence_length=FLAGS.horizon_length, discount=discount)
-
-        agent, offline_info = agent.update(batch)
+        # agent, offline_info = agent.update(batch)
+        offline_info = {}
 
         if i % FLAGS.log_interval == 0:
             logger.log(offline_info, "offline_agent", step=log_step)
@@ -208,7 +225,7 @@ def main(_):
             save_agent(agent, FLAGS.save_dir, log_step)
 
         # eval: do one at very start, very end, and in b/w using eval_interval
-        if i == FLAGS.offline_steps - 1 or i == 2 or \
+        if i == FLAGS.offline_steps - 1 or i == 0 or \
             (FLAGS.eval_interval != 0 and i % FLAGS.eval_interval == 0):
             # during eval, the action chunk is executed fully
             eval_info, _, renders = evaluate(
@@ -220,7 +237,8 @@ def main(_):
                 num_parallel_envs=FLAGS.num_parallel_envs,
                 video_frame_skip=FLAGS.video_frame_skip,
             )
-            eval_info['video'] = get_wandb_video(renders)
+            if len(renders) > 0:
+                eval_info['video'] = get_wandb_video(renders)
             logger.log(eval_info, "eval", step=log_step)
 
     # transition from offline to online
