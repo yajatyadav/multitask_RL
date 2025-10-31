@@ -8,6 +8,7 @@ from envs.ogbench_utils import make_ogbench_env_and_datasets
 from envs.robomimic_utils import is_robomimic_env
 from envs.libero_utils import is_libero_env
 
+from plotting.plot_Q_value_visuals import value_and_reward_visualization
 from utils.flax_utils import save_agent
 from utils.datasets import Dataset, ReplayBuffer
 
@@ -42,6 +43,7 @@ flags.DEFINE_integer('start_training', 5000, 'when does training start')
 flags.DEFINE_boolean('use_pixels', False, 'Whether to use pixels as observations during training and evaluation.')
 flags.DEFINE_boolean('use_proprio', False, 'Whether to use EEF proprio as observations during training and evaluation.')
 flags.DEFINE_boolean('use_mj_sim_state', False, 'Whether to use MJ sim state as observations during training and evaluation.')
+flags.DEFINE_boolean('use_language', False, 'Whether to use language as observations during training and evaluation.')
 flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
 
 flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
@@ -105,12 +107,15 @@ def main(_):
     else:
         keys_to_load = []
         if FLAGS.use_pixels:
-            keys_to_load.extend(['obs/agentview_rgb', 'obs/eye_in_hand_rgb']) # use 2 cam images
+            keys_to_load.extend(['agentview_rgb', 'eye_in_hand_rgb']) # use 2 cam images
         if FLAGS.use_proprio:
-            keys_to_load.extend(['obs/ee_pos', 'obs/ee_ori', 'obs_gripper_states']) # use EEF proprio
+            keys_to_load.extend(['proprio'])
+            # keys_to_load.extend(['obs/ee_pos', 'obs/ee_ori', 'obs/gripper_states']) # use EEF proprio
+        if FLAGS.use_language:
+            keys_to_load.extend(['language']) # use language
         if FLAGS.use_mj_sim_state:
             keys_to_load.extend(['states']) # use MJ sim state
-        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name, FLAGS.task_name, FLAGS.augment_negative_demos, num_parallel_envs=FLAGS.num_parallel_envs, keys_to_load=keys_to_load)
+        env, eval_env, train_dataset, val_dataset, names_to_return = make_env_and_datasets(FLAGS.env_name, FLAGS.task_name, FLAGS.augment_negative_demos, num_parallel_envs=FLAGS.num_parallel_envs, keys_to_load=keys_to_load)
     
     print(f"Made env and datasets.Train dataset size: {train_dataset.size}", flush=True)
 
@@ -163,8 +168,8 @@ def main(_):
     ## TODO(YY): hacky-way to handle images- .sample() returns then as (128, 128, 6) instead of (1, 128, 128, 6)
     ## we also cannot use .sample_sequence() for init as that adds a horizon dim
     ## can move this logic into the dataset libero_util func later, but works for now....
-    print(f"Initializing with obs shape: {example_batch['observations'].shape}")
-    print(f"Initializing with actions shape: {example_batch['actions'].shape}")
+    # print(f"Initializing with obs shape: {example_batch['observations'].shape}")
+    # print(f"Initializing with actions shape: {example_batch['actions'].shape}")
     
     agent_class = agents[config['agent_name']]
     agent = agent_class.create(
@@ -175,7 +180,8 @@ def main(_):
     )
 
     # Setup logging.
-    prefixes = ["eval", "env"]
+    prefixes = ["env", "eval"] + [f"eval_{names_to_return[i]}" for i in range(len(names_to_return))]
+    print(f"Logging prefixes ARE: {prefixes}")
     if FLAGS.offline_steps > 0:
         prefixes.append("offline_agent")
     if FLAGS.online_steps > 0:
@@ -210,35 +216,43 @@ def main(_):
             train_dataset = process_train_dataset(train_dataset)
 
         batch = train_dataset.sample_sequence(config['batch_size'], sequence_length=FLAGS.horizon_length, discount=discount)
-        # agent, offline_info = agent.update(batch)
-        offline_info = {}
+        agent, offline_info = agent.update(batch)
 
         if i % FLAGS.log_interval == 0:
             logger.log(offline_info, "offline_agent", step=log_step)
 
-        if i in times_to_log_inputs:
-            to_log = get_sample_input_output_log_to_wandb(batch)
-            logger.log(to_log, "offline_agent", step=log_step)
+        # if i in times_to_log_inputs:
+        #     to_log = get_sample_input_output_log_to_wandb(batch)
+        #     logger.log(to_log, "offline_agent", step=log_step)
         
         # saving
         if FLAGS.save_interval > 0 and i % FLAGS.save_interval == 0:
             save_agent(agent, FLAGS.save_dir, log_step)
 
         # eval: do one at very start, very end, and in b/w using eval_interval
-        if i == FLAGS.offline_steps - 1 or i == 0 or \
+        if i == FLAGS.offline_steps - 1 or i == 20 or \
             (FLAGS.eval_interval != 0 and i % FLAGS.eval_interval == 0):
             # during eval, the action chunk is executed fully
-            eval_info, _, renders = evaluate(
-                agent=agent,
-                env=eval_env,
-                action_dim=example_batch["actions"].shape[-1],
-                num_eval_episodes=FLAGS.eval_episodes,
-                num_video_episodes=FLAGS.video_episodes,
-                num_parallel_envs=FLAGS.num_parallel_envs,
-                video_frame_skip=FLAGS.video_frame_skip,
-            )
-            if len(renders) > 0:
-                eval_info['video'] = get_wandb_video(renders)
+
+            all_eval_info = []
+            for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=10, desc="Evaluating multi-task", position=0,leave=False):
+                eval_info, trajs, renders = evaluate(
+                    agent=agent,
+                    env=eval_env_j,
+                    action_dim=example_batch["actions"].shape[-1],
+                    num_eval_episodes=FLAGS.eval_episodes,
+                    num_video_episodes=FLAGS.video_episodes,
+                    num_parallel_envs=FLAGS.num_parallel_envs,
+                    video_frame_skip=FLAGS.video_frame_skip,
+                )
+                all_eval_info.append(eval_info)
+                if len(renders) > 0:
+                    # value_and_reward_visualization(trajs, agent, FLAGS.save_dir, log_step)
+                    eval_info['video'] = get_wandb_video(renders)
+                logger.log(eval_info, f"eval_{names_to_return[j]}", step=log_step)
+
+            # aggregate eval info via mean, then log under "eval" prefix
+            eval_info = {k: np.mean([eval_info[k] for eval_info in all_eval_info]) for k in all_eval_info[0].keys()}
             logger.log(eval_info, "eval", step=log_step)
 
     # transition from offline to online

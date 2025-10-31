@@ -11,6 +11,8 @@ from utils.encoders import encoder_modules
 from utils.flax_utils import ModuleDict, TrainState, nonpytree_field
 from utils.networks import ActorVectorField, Value
 
+from functools import partial
+
 class ACFQLAgent(flax.struct.PyTreeNode):
     """Flow Q-learning (FQL) agent with action chunking. 
     """
@@ -29,9 +31,10 @@ class ACFQLAgent(flax.struct.PyTreeNode):
         
         # TD loss
         rng, sample_rng = jax.random.split(rng)
-        next_actions = self.sample_actions(batch['next_observations'][..., -1, :], rng=sample_rng)
+        last_next_obs = jax.tree_util.tree_map(lambda x: x[..., -1, :], batch['next_observations'])
+        next_actions = self.sample_actions(last_next_obs, rng=sample_rng)
 
-        next_qs = self.network.select(f'target_critic')(batch['next_observations'][..., -1, :], actions=next_actions)
+        next_qs = self.network.select(f'target_critic')(last_next_obs, actions=next_actions)
         if self.config['q_agg'] == 'min':
             next_q = next_qs.min(axis=0)
         else:
@@ -158,12 +161,15 @@ class ACFQLAgent(flax.struct.PyTreeNode):
         agent, infos = jax.lax.scan(self._update, self, batch)
         return agent, jax.tree_util.tree_map(lambda x: x.mean(), infos)
     
-    @jax.jit
+    @partial(jax.jit, static_argnames=['during_eval'])
     def sample_actions(
         self,
         observations,
         rng=None,
+        during_eval=False,
     ):
+        if during_eval:
+            pass
         
         if self.config["actor_type"] == "distill-ddpg":
             noises = jax.random.normal(
@@ -180,14 +186,22 @@ class ACFQLAgent(flax.struct.PyTreeNode):
         elif self.config["actor_type"] == "best-of-n":
             action_dim = self.config['action_dim'] * \
                         (self.config['horizon_length'] if self.config["action_chunking"] else 1)
+
+            k = sorted(observations.keys())[0]
             noises = jax.random.normal(
                 rng,
                 (
-                    *observations.shape[: -len(self.config['ob_dims'])],  # batch_size
+                    observations[k].shape[0],
+                    # *observations.shape[: -len(self.config['ob_dims'])],  # batch_size
+                    # self.config['batch_size'],
                     self.config["actor_num_samples"], action_dim
                 ),
             )
-            observations = jnp.repeat(observations[:, None, ...], self.config["actor_num_samples"], axis=1) ## YY: changed adding none to axis=1, and repeating along axis=1 (from axis=-2) so that images work
+            # observations = jnp.repeat(observations[:, None, ...], self.config["actor_num_samples"], axis=1) ## YY: changed adding none to axis=1, and repeating along axis=1 (from axis=-2) so that images work
+            observations = jax.tree_util.tree_map(
+                    lambda x: jnp.repeat(x[:, None, ...], self.config["actor_num_samples"], axis=1),
+                    observations
+                )
             actions = self.compute_flow_actions(observations, noises)
             actions = jnp.clip(actions, -1, 1)
             if self.config["q_agg"] == "mean":
@@ -242,7 +256,8 @@ class ACFQLAgent(flax.struct.PyTreeNode):
         rng, init_rng = jax.random.split(rng, 2)
 
         ex_times = ex_actions[..., :1]
-        ob_dims = ex_observations.shape
+        # # ob_dims = ex_observations.shape
+        # ob_dims = 512
         action_dim = ex_actions.shape[-1]
         if config["action_chunking"]:
             full_actions = jnp.concatenate([ex_actions] * config["horizon_length"], axis=-1)
@@ -282,7 +297,7 @@ class ACFQLAgent(flax.struct.PyTreeNode):
         )
 
         
-        network_info = dict(
+        network_info = dict(        
             actor_bc_flow=(actor_bc_flow_def, (ex_observations, full_actions, ex_times)),
             actor_onestep_flow=(actor_onestep_flow_def, (ex_observations, full_actions)),
             critic=(critic_def, (ex_observations, full_actions)),
@@ -306,7 +321,7 @@ class ACFQLAgent(flax.struct.PyTreeNode):
 
         params[f'modules_target_critic'] = params[f'modules_critic']
 
-        config['ob_dims'] = ob_dims
+        config['ob_dims'] = [512] # hardocded to 512 (output shape of combined encoder for now)
         config['action_dim'] = action_dim
 
         return cls(rng, network=network, config=flax.core.FrozenDict(**config))

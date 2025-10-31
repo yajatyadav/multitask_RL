@@ -136,13 +136,13 @@ def make_env_and_datasets(env_name, task_name, augment_negative_demos, num_paral
         eval_env = EpisodeMonitor(eval_env)
         dataset = robomimic_utils.get_dataset(env, env_name)
         train_dataset, val_dataset = dataset, None
-    elif env_name.startswith("libero"):
+    elif env_name.startswith("libero") or env_name.startswith("all_libero"):
         #libero
         from envs import libero_utils
         # during eval_time, we only load the keys that were used in training in the first place
         eval_env_name = f'{env_name}-{task_name}'
-        env = libero_utils.make_env(eval_env_name, num_parallel_envs=num_parallel_envs, keys_to_load=keys_to_load, seed=0) # for now, online env will ALSO generate several parallel libero envs!
-        eval_env = libero_utils.make_env(eval_env_name, num_parallel_envs=num_parallel_envs, keys_to_load=keys_to_load, seed=42)
+        env, _ = libero_utils.make_env(eval_env_name, num_parallel_envs=num_parallel_envs, keys_to_load=keys_to_load, seed=0) # for now, online env will ALSO generate several parallel libero envs!
+        eval_env, names_to_return = libero_utils.make_env(eval_env_name, num_parallel_envs=num_parallel_envs, keys_to_load=keys_to_load, seed=42)
         ## YY: removing this wrapper as eval wants raw eval object
         # env = EpisodeMonitor(env)
         # eval_env = EpisodeMonitor(eval_env)
@@ -168,4 +168,4 @@ def make_env_and_datasets(env_name, task_name, augment_negative_demos, num_paral
                 add_or_replace=dict(actions=np.clip(val_dataset['actions'], -1 + action_clip_eps, 1 - action_clip_eps))
             )
 
-    return env, eval_env, train_dataset, val_dataset
+    return env, eval_env, train_dataset, val_dataset, names_to_return

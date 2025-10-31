@@ -14,23 +14,27 @@
 
 export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_PREALLOCATE=false
+# use osmesa backend for rendering
 
 uv run main.py \
---exp_name_prefix=test_PIXELS_baseandwristcam_kitchen_scene2_open_the_top_drawer_of_the_cabinet_augment_negative_demos_False_best_of_1 \
---run_group=debug_kitchen_scene_2_singletask_ \
+--exp_name_prefix=test_multitask_IMAGE_same_scene_kitchenscene2_best_of_1 \
+--run_group=test_multitask_kitchenscene2__ \
 --env_name=libero_90-kitchen_scene2 \
---task_name=open_the_top_drawer_of_the_cabinet \
+--task_name='' \
 --augment_negative_demos=False \
 \
 --use_pixels=True \
---use_proprio=False \
+--use_proprio=True \
+--use_language=True \
 --use_mj_sim_state=False \
 \
 --online_steps=0 \
---eval_interval=50000 \
+--eval_episodes=20 \
+--eval_interval=100000 \
 --num_parallel_envs=1 \
 --video_episodes=1 \
 \
+--agent.batch_size=256 \
 --agent.actor_type=best-of-n \
 --agent.actor_num_samples=1 \
---agent.encoder=impala_debug \
+--agent.encoder=combined_encoder_large \

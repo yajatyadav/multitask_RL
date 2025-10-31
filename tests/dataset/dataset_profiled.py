@@ -1,5 +1,5 @@
 from functools import partial
-
+import time
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -51,13 +51,17 @@ class Dataset(FrozenDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.size = get_size(self._dict)
-        self.frame_stack = None  # Number of frames to stack; set outside the class.
-        self.p_aug = None  # Image augmentation probability; set outside the class.
-        self.return_next_actions = False  # Whether to additionally return next actions; set outside the class.
+        self.frame_stack = None
+        self.p_aug = None
+        self.return_next_actions = False
 
         # Compute terminal and initial locations.
         self.terminal_locs = np.nonzero(self['terminals'] > 0)[0]
         self.initial_locs = np.concatenate([[0], self.terminal_locs[:-1] + 1])
+        
+        # Profiling flag
+        self.profile = False
+        self.profile_times = {}
 
     def get_random_idxs(self, num_idxs):
         """Return `num_idxs` random indices."""
@@ -69,12 +73,10 @@ class Dataset(FrozenDict):
             idxs = self.get_random_idxs(batch_size)
         batch = self.get_subset(idxs)
         if self.frame_stack is not None:
-            # Stack frames.
             initial_state_idxs = self.initial_locs[np.searchsorted(self.initial_locs, idxs, side='right') - 1]
-            obs = []  # Will be [ob[t - frame_stack + 1], ..., ob[t]].
-            next_obs = []  # Will be [ob[t - frame_stack + 2], ..., ob[t], next_ob[t]].
+            obs = []
+            next_obs = []
             for i in reversed(range(self.frame_stack)):
-                # Use the initial state if the index is out of bounds.
                 cur_idxs = np.maximum(idxs - i, initial_state_idxs)
                 obs.append(jax.tree_util.tree_map(lambda arr: arr[cur_idxs], self['observations']))
                 if i != self.frame_stack - 1:
@@ -84,109 +86,74 @@ class Dataset(FrozenDict):
             batch['observations'] = jax.tree_util.tree_map(lambda *args: np.concatenate(args, axis=-1), *obs)
             batch['next_observations'] = jax.tree_util.tree_map(lambda *args: np.concatenate(args, axis=-1), *next_obs)
         if self.p_aug is not None:
-            # Apply random-crop image augmentation.
             if np.random.rand() < self.p_aug:
                 self.augment(batch, ['observations', 'next_observations'])
         return batch
 
-    
     def sample_sequence(self, batch_size, sequence_length, discount):
+        """Sample sequence with detailed profiling."""
+        times = {} if self.profile else None
+        
+        if self.profile:
+            t0 = time.perf_counter()
+        
         idxs = np.random.randint(self.size - sequence_length + 1, size=batch_size)
-        
-        data = jax.tree_util.tree_map(lambda v: v[idxs], self._dict)
-
-        # Pre-compute all required indices
-        all_idxs = idxs[:, None] + np.arange(sequence_length)[None, :]  # (batch_size, sequence_length)
-        all_idxs = all_idxs.flatten()
-        
-        # Batch fetch data - handle both dict and array observations
-        def fetch_and_reshape(arr):
-            fetched = arr[all_idxs]
-            return fetched.reshape(batch_size, sequence_length, *arr.shape[1:])
-        
-        batch_observations = jax.tree_util.tree_map(fetch_and_reshape, self['observations'])
-        batch_next_observations = jax.tree_util.tree_map(fetch_and_reshape, self['next_observations'])
-        batch_actions = self['actions'][all_idxs].reshape(batch_size, sequence_length, *self['actions'].shape[1:])
-        batch_rewards = self['rewards'][all_idxs].reshape(batch_size, sequence_length, *self['rewards'].shape[1:])
-        batch_masks = self['masks'][all_idxs].reshape(batch_size, sequence_length, *self['masks'].shape[1:])
-        batch_terminals = self['terminals'][all_idxs].reshape(batch_size, sequence_length, *self['terminals'].shape[1:])
-        
-        # Calculate next_actions
-        next_action_idxs = np.minimum(all_idxs + 1, self.size - 1)
-        batch_next_actions = self['actions'][next_action_idxs].reshape(batch_size, sequence_length, *self['actions'].shape[1:])
-        
-        # Use vectorized operations to calculate cumulative rewards and masks
-        rewards = np.zeros((batch_size, sequence_length), dtype=float)
-        masks = np.ones((batch_size, sequence_length), dtype=float)
-        terminals = np.zeros((batch_size, sequence_length), dtype=float)
-        valid = np.ones((batch_size, sequence_length), dtype=float)
-        
-        # Vectorized calculation
-        rewards[:, 0] = batch_rewards[:, 0].squeeze()
-        masks[:, 0] = batch_masks[:, 0].squeeze()
-        terminals[:, 0] = batch_terminals[:, 0].squeeze()
-        
-        discount_powers = discount ** np.arange(sequence_length)
-        for i in range(1, sequence_length):
-            rewards[:, i] = rewards[:, i-1] + batch_rewards[:, i].squeeze() * discount_powers[i]
-            masks[:, i] = np.minimum(masks[:, i-1], batch_masks[:, i].squeeze())
-            terminals[:, i] = np.maximum(terminals[:, i-1], batch_terminals[:, i].squeeze())
-            valid[:, i] = 1.0 - terminals[:, i-1]
-        
-        # Reorganize observations data format - handle both dict and array
-        def transpose_if_visual(arr):
-            if len(arr.shape) == 5:  # Visual data: (batch, seq, h, w, c)
-                return arr.transpose(0, 2, 3, 1, 4)  # -> (batch, h, w, seq, c)
-            else:  # State data: maintain (batch, seq, state_dim)
-                return arr
-        
-        observations = jax.tree_util.tree_map(transpose_if_visual, batch_observations)
-        next_observations = jax.tree_util.tree_map(transpose_if_visual, batch_next_observations)
-        
-        actions = batch_actions  # (batch_size, sequence_length, action_dim)
-        next_actions = batch_next_actions  # (batch_size, sequence_length, action_dim)
-        
-        return dict(
-            observations=jax.tree_util.tree_map(lambda arr: arr.copy(), data['observations']),
-            full_observations=observations,
-            actions=actions,
-            masks=masks,
-            rewards=rewards,
-            terminals=terminals,
-            valid=valid,
-            next_observations=next_observations,
-            next_actions=next_actions,
-        )
-        
-
-    def sample_sequence_old(self, batch_size, sequence_length, discount):
-        idxs = np.random.randint(self.size - sequence_length + 1, size=batch_size)
-        
         data = {k: v[idxs] for k, v in self.items()}
-
+        
+        if self.profile:
+            times['idx_generation'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
         # Pre-compute all required indices
-        all_idxs = idxs[:, None] + np.arange(sequence_length)[None, :]  # (batch_size, sequence_length)
+        all_idxs = idxs[:, None] + np.arange(sequence_length)[None, :]
         all_idxs = all_idxs.flatten()
         
-        # Batch fetch data to avoid loops
-        batch_observations = self['observations'][all_idxs].reshape(batch_size, sequence_length, *self['observations'].shape[1:])
+        if self.profile:
+            times['idx_computation'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
+        # Batch fetch data - THIS IS LIKELY THE BOTTLENECK FOR IMAGES
+        batch_observations = self['observations'][all_idxs]
+        
+        if self.profile:
+            times['fetch_observations'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
+        batch_observations = batch_observations.reshape(batch_size, sequence_length, *self['observations'].shape[1:])
+        
+        if self.profile:
+            times['reshape_observations'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
         batch_next_observations = self['next_observations'][all_idxs].reshape(batch_size, sequence_length, *self['next_observations'].shape[1:])
+        
+        if self.profile:
+            times['fetch_next_observations'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
         batch_actions = self['actions'][all_idxs].reshape(batch_size, sequence_length, *self['actions'].shape[1:])
         batch_rewards = self['rewards'][all_idxs].reshape(batch_size, sequence_length, *self['rewards'].shape[1:])
         batch_masks = self['masks'][all_idxs].reshape(batch_size, sequence_length, *self['masks'].shape[1:])
         batch_terminals = self['terminals'][all_idxs].reshape(batch_size, sequence_length, *self['terminals'].shape[1:])
         
+        if self.profile:
+            times['fetch_other_data'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
         # Calculate next_actions
         next_action_idxs = np.minimum(all_idxs + 1, self.size - 1)
         batch_next_actions = self['actions'][next_action_idxs].reshape(batch_size, sequence_length, *self['actions'].shape[1:])
         
-        # Use vectorized operations to calculate cumulative rewards and masks
+        if self.profile:
+            times['fetch_next_actions'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
+        # Vectorized calculation
         rewards = np.zeros((batch_size, sequence_length), dtype=float)
         masks = np.ones((batch_size, sequence_length), dtype=float)
         terminals = np.zeros((batch_size, sequence_length), dtype=float)
         valid = np.ones((batch_size, sequence_length), dtype=float)
         
-        # Vectorized calculation
         rewards[:, 0] = batch_rewards[:, 0].squeeze()
         masks[:, 0] = batch_masks[:, 0].squeeze()
         terminals[:, 0] = batch_terminals[:, 0].squeeze()
@@ -198,20 +165,26 @@ class Dataset(FrozenDict):
             terminals[:, i] = np.maximum(terminals[:, i-1], batch_terminals[:, i].squeeze())
             valid[:, i] = 1.0 - terminals[:, i-1]
         
-        # Reorganize observations data format - maintain the exact same shape as the original function
-        if len(batch_observations.shape) == 5:  # Visual data: (batch, seq, h, w, c)
-            # Transpose to (batch, h, w, seq, c) format, consistent with the original function
-            observations = batch_observations.transpose(0, 2, 3, 1, 4)  # (batch_size, h, w, sequence_length, c)
-            next_observations = batch_next_observations.transpose(0, 2, 3, 1, 4)  # (batch_size, h, w, sequence_length, c)
-        else:  # State data: maintain (batch, seq, state_dim) shape
-            observations = batch_observations  # (batch_size, sequence_length, state_dim)
-            next_observations = batch_next_observations  # (batch_size, sequence_length, state_dim)
+        if self.profile:
+            times['compute_rewards_masks'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
         
-        # Maintain the 3D shape of actions and next_actions, consistent with the original function
-        actions = batch_actions  # (batch_size, sequence_length, action_dim)
-        next_actions = batch_next_actions  # (batch_size, sequence_length, action_dim)
+        # Reorganize observations data format
+        if len(batch_observations.shape) == 5:  # Visual data
+            observations = batch_observations.transpose(0, 2, 3, 1, 4)
+            next_observations = batch_next_observations.transpose(0, 2, 3, 1, 4)
+        else:  # State data
+            observations = batch_observations
+            next_observations = batch_next_observations
         
-        return dict(
+        if self.profile:
+            times['transpose_observations'] = time.perf_counter() - t0
+            t0 = time.perf_counter()
+        
+        actions = batch_actions
+        next_actions = batch_next_actions
+        
+        result = dict(
             observations=data['observations'].copy(),
             full_observations=observations,
             actions=actions,
@@ -222,12 +195,30 @@ class Dataset(FrozenDict):
             next_observations=next_observations,
             next_actions=next_actions,
         )
+        
+        if self.profile:
+            times['create_result_dict'] = time.perf_counter() - t0
+            self.profile_times = times
+        
+        return result
+    
+    def print_profile(self):
+        """Print profiling results."""
+        if not self.profile_times:
+            print("No profiling data available. Set dataset.profile = True before sampling.")
+            return
+        
+        print("\n=== Sample Sequence Profiling ===")
+        total = sum(self.profile_times.values())
+        for key, value in sorted(self.profile_times.items(), key=lambda x: x[1], reverse=True):
+            print(f"{key:30s}: {value*1000:8.2f} ms ({value/total*100:5.1f}%)")
+        print(f"{'TOTAL':30s}: {total*1000:8.2f} ms")
+        print("=" * 50)
 
     def get_subset(self, idxs):
         """Return a subset of the dataset given the indices."""
         result = jax.tree_util.tree_map(lambda arr: arr[idxs], self._dict)
         if self.return_next_actions:
-            # WARNING: This is incorrect at the end of the trajectory. Use with caution.
             result['next_actions'] = self._dict['actions'][np.minimum(idxs + 1, self.size - 1)]
         return result
 
@@ -245,20 +236,11 @@ class Dataset(FrozenDict):
 
 
 class ReplayBuffer(Dataset):
-    """Replay buffer class.
-
-    This class extends Dataset to support adding transitions.
-    """
+    """Replay buffer class."""
 
     @classmethod
     def create(cls, transition, size):
-        """Create a replay buffer from the example transition.
-
-        Args:
-            transition: Example transition (dict).
-            size: Size of the replay buffer.
-        """
-
+        """Create a replay buffer from the example transition."""
         def create_buffer(example):
             example = np.array(example)
             return np.zeros((size, *example.shape), dtype=example.dtype)
@@ -268,13 +250,7 @@ class ReplayBuffer(Dataset):
 
     @classmethod
     def create_from_initial_dataset(cls, init_dataset, size):
-        """Create a replay buffer from the initial dataset.
-
-        Args:
-            init_dataset: Initial dataset.
-            size: Size of the replay buffer.
-        """
-
+        """Create a replay buffer from the initial dataset."""
         def create_buffer(init_buffer):
             buffer = np.zeros((size, *init_buffer.shape[1:]), dtype=init_buffer.dtype)
             buffer[: len(init_buffer)] = init_buffer
@@ -287,14 +263,12 @@ class ReplayBuffer(Dataset):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.max_size = get_size(self._dict)
         self.size = 0
         self.pointer = 0
 
     def add_transition(self, transition):
         """Add a transition to the replay buffer."""
-
         def set_idx(buffer, new_element):
             buffer[self.pointer] = new_element
 
@@ -306,8 +280,8 @@ class ReplayBuffer(Dataset):
         """Clear the replay buffer."""
         self.size = self.pointer = 0
 
-def add_history(dataset, history_length):
 
+def add_history(dataset, history_length):
     size = dataset.size
     (terminal_locs,) = np.nonzero(dataset['terminals'] > 0)
     initial_locs = np.concatenate([[0], terminal_locs[:-1] + 1])
