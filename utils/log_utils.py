@@ -7,7 +7,7 @@ import ml_collections
 import numpy as np
 import wandb
 from PIL import Image, ImageEnhance
-
+import glob
 
 class CsvLogger:
     """CSV logger for logging metrics to a CSV file."""
@@ -40,11 +40,15 @@ class CsvLogger:
 def get_exp_name(seed):
     """Return the experiment name."""
     exp_name = ''
-    exp_name += f'sd{seed:03d}_'
+    exp_name += f'sd{seed:03d}'
     if 'SLURM_JOB_ID' in os.environ:
         exp_name += f's_{os.environ["SLURM_JOB_ID"]}.'
     if 'SLURM_PROCID' in os.environ:
         exp_name += f'{os.environ["SLURM_PROCID"]}.'
+    if 'SLURM_ARRAY_JOB_ID' in os.environ:
+        exp_name += f'{os.environ["SLURM_ARRAY_JOB_ID"]}.'
+    if 'SLURM_ARRAY_TASK_ID' in os.environ:
+        exp_name += f'{os.environ["SLURM_ARRAY_TASK_ID"]}.'
     exp_name += f'{datetime.now().strftime("%Y%m%d_%H%M%S")}'
 
     return exp_name
@@ -60,7 +64,7 @@ def get_flag_dict():
 
 
 def setup_wandb(
-    entity=None,
+    entity='yajatyadav',
     project='project',
     group=None,
     name=None,
@@ -83,10 +87,13 @@ def setup_wandb(
             _disable_stats=False,
         ),
         mode=mode,
-        save_code=True,
     )
 
     run = wandb.init(**init_kwargs)
+
+    # assume a flat structure
+    run.save('*.py')
+    run.save('**/*.py')
 
     return run
 
@@ -144,3 +151,26 @@ def get_wandb_video(renders=None, n_cols=None, fps=15):
     renders = reshape_video(renders, n_cols)  # (t, c, nr * h, nc * w)
 
     return wandb.Video(renders, fps=fps, format='mp4')
+
+
+def convert_arr_to_wandb_table(arr, prefix):
+    return wandb.Table(columns=[f"{prefix}/{i}" for i in range(len(arr))], data=[arr.tolist()])
+
+
+def get_sample_input_output_log_to_wandb(batch):
+    """Get a sample input-output log to log to wandb."""
+    sample_obs = batch['observations'][0]
+    sample_action = batch['actions'][0]
+    sample_next_obs = batch['next_observations'][0]
+    sample_reward = batch['rewards'][0]
+    sample_terminal = batch['terminals'][0]
+    sample_mask = batch['masks'][0]
+
+    return {
+        'observations': convert_arr_to_wandb_table(sample_obs, 'observations'),
+        'actions': convert_arr_to_wandb_table(sample_action, 'actions'),
+        'next_observations': convert_arr_to_wandb_table(sample_next_obs, 'next_observations'),
+        'rewards': convert_arr_to_wandb_table(sample_reward, 'rewards'),
+        'terminals': convert_arr_to_wandb_table(sample_terminal, 'terminals'),
+        'masks': convert_arr_to_wandb_table(sample_mask, 'masks'),
+    }
