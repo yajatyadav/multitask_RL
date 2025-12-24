@@ -114,8 +114,8 @@ def evaluate(
         while not all(done):
             if len(action_queue) == 0:
                 observation_for_actor = stack_dict_list(observation)
-                observation_for_actor['language'] = np.repeat(task_embedding[None, :], num_parallel_envs, axis=0)
-                action = actor_fn(observations=observation_for_actor, during_eval=True)
+                observation_for_actor['language'] = np.repeat(task_embedding[None, :], num_episodes_this_iter, axis=0)
+                action = actor_fn(observations=observation_for_actor)
                 have_new_action = True
                 action = np.array(action).reshape(num_episodes_this_iter, -1, action_dim).transpose(1, 0, 2) # since each elt of action queue should have shape (num_eval_episodes, action_dim)
                 action_chunk_len = action.shape[0]

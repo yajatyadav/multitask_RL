@@ -55,7 +55,7 @@ flags.DEFINE_integer('num_parallel_envs', 50, 'Number of parallel environments f
 flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
-config_flags.DEFINE_config_file('agent', 'agents/acfql.py', lock_config=False)
+config_flags.DEFINE_config_file('agent', 'agents/acifql.py', lock_config=False)
 
 flags.DEFINE_float('dataset_proportion', 1.0, "Proportion of the dataset to use")
 flags.DEFINE_integer('dataset_replace_interval', 1000, 'Dataset replace interval, used for large datasets because of memory constraints')
@@ -164,7 +164,7 @@ def main(_):
         return ds
     
     train_dataset = process_train_dataset(train_dataset)
-    example_batch = train_dataset.sample(())
+    example_batch = train_dataset.sample_sequence(config['batch_size'], sequence_length=FLAGS.horizon_length, discount=discount)
     ## TODO(YY): hacky-way to handle images- .sample() returns then as (128, 128, 6) instead of (1, 128, 128, 6)
     ## we also cannot use .sample_sequence() for init as that adds a horizon dim
     ## can move this logic into the dataset libero_util func later, but works for now....
@@ -235,7 +235,7 @@ def main(_):
             # during eval, the action chunk is executed fully
 
             all_eval_info = []
-            for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=10, desc="Evaluating multi-task", position=0,leave=False):
+            for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=len(eval_env), desc="Evaluating multi-task", position=0,leave=False):
                 eval_info, trajs, renders = evaluate(
                     agent=agent,
                     env=eval_env_j,
@@ -250,6 +250,9 @@ def main(_):
                     # value_and_reward_visualization(trajs, agent, FLAGS.save_dir, log_step)
                     eval_info['video'] = get_wandb_video(renders)
                 logger.log(eval_info, f"eval_{names_to_return[j]}", step=log_step)
+                # remove video before taking mean
+                if 'video' in eval_info:
+                    del eval_info['video']
 
             # aggregate eval info via mean, then log under "eval" prefix
             eval_info = {k: np.mean([eval_info[k] for eval_info in all_eval_info]) for k in all_eval_info[0].keys()}
