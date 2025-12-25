@@ -148,9 +148,8 @@ class ACIFQLAgent(flax.struct.PyTreeNode):
         rng=None,
         temperature=1.0,
     ):
-        """Sample actions from the actor."""
-        orig_observations = observations
-        
+        """Rejection sampling using the critic from a BC-flow actor."""
+        orig_observations = observations        
 
         # Sample `num_samples` noises and propagate them through the flow.
         full_action_dim = self.config["action_dim"] * (self.config["horizon_length"] if self.config["action_chunking"] else 1)
@@ -163,8 +162,6 @@ class ACIFQLAgent(flax.struct.PyTreeNode):
                 full_action_dim,
             ),
         )
-        # n_observations = jnp.repeat(jnp.expand_dims(observations, 0), self.config['num_samples'], axis=0)
-        # n_orig_observations = jnp.repeat(jnp.expand_dims(orig_observations, 0), self.config['num_samples'], axis=0)
         observations = jax.tree_util.tree_map(
                     lambda x: jnp.repeat(x[:, None, ...], self.config["num_samples"], axis=1),
                     observations
@@ -174,7 +171,6 @@ class ACIFQLAgent(flax.struct.PyTreeNode):
 
         # Pick the action with the highest Q-value.
         q = self.network.select('critic')(observations, actions=actions).min(axis=0)
-
         indices = jnp.argmax(q, axis=-1)
         bshape = indices.shape
         indices = indices.reshape(-1)

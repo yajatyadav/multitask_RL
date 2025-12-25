@@ -16,7 +16,7 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=DEBUG_full_libero_Q_learning_acifql_23_scenes \
+--exp_name_prefix=full_libero_Q_learning_acifql_23_scenes \
 --run_group=DEBUG_full_libero_Q_learning_acifql_23_scene_all \
 --env_name=all_libero-* \
 --task_name='' \

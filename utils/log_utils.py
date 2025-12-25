@@ -8,6 +8,7 @@ import numpy as np
 import wandb
 from PIL import Image, ImageEnhance
 import glob
+from rich.tree import Tree
 
 class CsvLogger:
     """CSV logger for logging metrics to a CSV file."""
@@ -174,3 +175,25 @@ def get_sample_input_output_log_to_wandb(batch):
         'terminals': convert_arr_to_wandb_table(sample_terminal, 'terminals'),
         'masks': convert_arr_to_wandb_table(sample_mask, 'masks'),
     }
+
+
+def build_network_tree(params, name="Network Parameters"):
+    """Build a rich Tree visualization with colors"""
+    tree = Tree(f"[bold cyan]{name}[/bold cyan]")
+    
+    def add_nodes(parent, data):
+        items = list(data.items())
+        for key, value in items:
+            if isinstance(value, dict):
+                # It's a submodule
+                branch = parent.add(f"[bold yellow]{key}/[/bold yellow]")
+                add_nodes(branch, value)
+            else:
+                # It's a parameter
+                shape = f"{value.shape}" if hasattr(value, 'shape') else ""
+                dtype = f"[dim]{value.dtype}[/dim]" if hasattr(value, 'dtype') else ""
+                size = f"{value.size:,}" if hasattr(value, 'size') else ""
+                parent.add(f"[green]{key}[/green]: {shape} {dtype} [dim]({size} params)[/dim]")
+    
+    add_nodes(tree, params)
+    return tree

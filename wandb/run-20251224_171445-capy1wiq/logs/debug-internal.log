@@ -1,0 +1,15 @@
+{"time":"2025-12-24T17:14:45.486064875-08:00","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/wandb/run-20251224_171445-capy1wiq/logs/debug-core.log"}
+{"time":"2025-12-24T17:14:46.070586118-08:00","level":"INFO","msg":"created new stream","id":"capy1wiq"}
+{"time":"2025-12-24T17:14:46.070612774-08:00","level":"INFO","msg":"stream: started","id":"capy1wiq"}
+{"time":"2025-12-24T17:14:46.070684715-08:00","level":"INFO","msg":"writer: Do: started","stream_id":"capy1wiq"}
+{"time":"2025-12-24T17:14:46.070808524-08:00","level":"INFO","msg":"handler: started","stream_id":"capy1wiq"}
+{"time":"2025-12-24T17:14:46.070822583-08:00","level":"INFO","msg":"sender: started","stream_id":"capy1wiq"}
+{"time":"2025-12-24T17:14:46.487877031-08:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-12-24T17:15:15.591834831-08:00","level":"INFO","msg":"stream: closing","id":"capy1wiq"}
+{"time":"2025-12-24T17:15:15.591854012-08:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-12-24T17:15:15.591916073-08:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-12-24T17:15:16.007585369-08:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-12-24T17:15:16.224288901-08:00","level":"INFO","msg":"handler: closed","stream_id":"capy1wiq"}
+{"time":"2025-12-24T17:15:16.22431543-08:00","level":"INFO","msg":"writer: Close: closed","stream_id":"capy1wiq"}
+{"time":"2025-12-24T17:15:16.224322557-08:00","level":"INFO","msg":"sender: closed","stream_id":"capy1wiq"}
+{"time":"2025-12-24T17:15:16.224351126-08:00","level":"INFO","msg":"stream: closed","id":"capy1wiq"}

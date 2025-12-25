@@ -87,8 +87,10 @@ class FrameStackWrapper(gymnasium.Wrapper):
         self.frames.append(ob)
         return self.get_observation(), reward, terminated, truncated, info
 
-
-def make_env_and_datasets(env_name, task_name, augment_negative_demos, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5):
+# augmentation types: 'first': uses the FIRST task per scene, using the other tasks in the scene as negative examples
+# 'task': uses task_name as positive, and other tasks with same scene as task_name as negative examples
+# 'exhaustive': in all scenes possible by env_name, every task will be augmented using all other tasks in the same scene as negative examples
+def make_env_and_datasets(env_name, task_name, augmentation_type, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5, use_hardcoded_eval_envs=False):
     """Make offline RL environment and datasets.
 
     Args:
@@ -141,12 +143,26 @@ def make_env_and_datasets(env_name, task_name, augment_negative_demos, num_paral
         from envs import libero_utils
         # during eval_time, we only load the keys that were used in training in the first place
         eval_env_name = f'{env_name}-{task_name}'
-        env, _ = libero_utils.make_env(eval_env_name, num_parallel_envs=num_parallel_envs, keys_to_load=keys_to_load, seed=0) # for now, online env will ALSO generate several parallel libero envs!
-        eval_env, names_to_return = libero_utils.make_env(eval_env_name, num_parallel_envs=num_parallel_envs, keys_to_load=keys_to_load, seed=42)
+        env = None
+        # env, _ = libero_utils.make_env(
+        #     eval_env_name,
+        #     num_parallel_envs=num_parallel_envs, 
+        #     use_hardcoded_eval_envs=use_hardcoded_eval_envs, 
+        #     keys_to_load=keys_to_load, 
+        #     seed=0,
+        #     use_hardcoded_eval_envs=use_hardcoded_eval_envs,
+        # ) # for now, online env will ALSO generate several parallel libero envs!
+        eval_env, names_to_return = libero_utils.make_env(
+            eval_env_name, 
+            num_parallel_envs=num_parallel_envs, 
+            use_hardcoded_eval_envs=use_hardcoded_eval_envs, 
+            keys_to_load=keys_to_load, 
+            seed=42,
+        )
         ## YY: removing this wrapper as eval wants raw eval object
         # env = EpisodeMonitor(env)
         # eval_env = EpisodeMonitor(eval_env)
-        dataset = libero_utils.get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load) # keys_to_load to control what gets loaded in!
+        dataset = libero_utils.get_dataset(env, env_name, task_name, augmentation_type, keys_to_load) # keys_to_load to control what gets loaded in!
         train_dataset, val_dataset = dataset, None
     else:
         raise ValueError(f'Unsupported environment: {env_name}')

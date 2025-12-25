@@ -1,0 +1,61 @@
+TODO(YY): Normalization path not implemented for libero_90-kitchen_scene2-open_the_top_drawer_of_the_cabinet
+evaluation environment will return keys:  {'language', 'proprio', 'agentview_image', 'robot0_eye_in_hand_image'}
+suites: ['libero_90'], scenes: ['kitchen_scene2']
+All possible envs, sorted alphabetically: there are 1 total envs
+ len(envs_to_eval)=6 Environments to evaluate: ['libero_spatial-pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate', 'libero_object-pick_up_the_alphabet_soup_and_place_it_in_the_basket', 'libero_goal-open_the_middle_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy']
+/home/yajatyadav/.local/share/uv/python/cpython-3.11.12-linux-x86_64-gnu/lib/python3.11/multiprocessing/popen_fork.py:66: RuntimeWarning: os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock.
+  self.pid = os.fork()
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+TODO(YY): Normalization path not implemented for libero_90-kitchen_scene2-open_the_top_drawer_of_the_cabinet
+evaluation environment will return keys:  {'language', 'proprio', 'agentview_image', 'robot0_eye_in_hand_image'}
+suites: ['libero_90'], scenes: ['kitchen_scene2']
+All possible envs, sorted alphabetically: there are 1 total envs
+ len(envs_to_eval)=6 Environments to evaluate: ['libero_spatial-pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate', 'libero_object-pick_up_the_alphabet_soup_and_place_it_in_the_basket', 'libero_goal-open_the_middle_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy']
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+suites: ['libero_90'], scenes: ['kitchen_scene2']
+🤪🤪🤪 all_libero_env_names: {'libero_90': ['libero_90-KITCHEN_SCENE2_open_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_back_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_front_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle', 'libero_90-KITCHEN_SCENE2_stack_the_middle_black_bowl_on_the_back_black_bowl']}
+🤪🤪🤪 distinct_scenes: {'libero_90': ['KITCHEN_SCENE2']}
+😈😈😈 suite='LIBERO_90' scene='KITCHEN_SCENE2' , there are 7 files for this suite + scene
+😈😈😈 target_task_name='open_the_top_drawer_of_the_cabinet'
+🥳🥳🥳 j=0 Dataset open_the_top_drawer_of_the_cabinet has 3765, and flip_rewards=False, relabeled to target_task_name='open_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 3765
+Evaluating agent with num_samples: 1
+Restoring agent from /home/yajatyadav/multitask_reinforcement_learning/multitask_RL/exp/multitask_RL/DEBUG_full_libero_Q_learning_acifql_23_scene_all/all_libero-*/DEBUG_full_libero_Q_learning_acifql_23_scenessd00020251224_145540/params_25000.pkl
+Restored from /home/yajatyadav/multitask_reinforcement_learning/multitask_RL/exp/multitask_RL/DEBUG_full_libero_Q_learning_acifql_23_scene_all/all_libero-*/DEBUG_full_libero_Q_learning_acifql_23_scenessd00020251224_145540/params_25000.pkl
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Evaluating agent on [<envs.libero_utils.LiberoTopLevelEnvWrapper object at 0x7fb535fdd150>] environments
+Traceback (most recent call last):                                                                                                                                                                                                                                                                                                
+  File "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/evaluation/eval_libero_best_of_N.py", line 162, in <module>                                                                                                                                                                                                
+    sweep_best_of_N(n_vals, restore_path)
+  File "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/evaluation/eval_libero_best_of_N.py", line 74, in sweep_best_of_N
+    eval_info = eval_agent(agent, example_batch, names_to_return, logger)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/evaluation/eval_libero_best_of_N.py", line 128, in eval_agent
+    eval_info, trajs, renders = evaluate(
+                                ^^^^^^^^^
+  File "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/evaluation_libero.py", line 95, in evaluate
+    observation, info = env.reset(), {}
+                        ^^^^^^^^^^^
+  File "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/libero/libero/libero/envs/venv.py", line 709, in reset
+    ret_list = [self.workers[i].recv() for i in id]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/libero/libero/libero/envs/venv.py", line 709, in <listcomp>
+    ret_list = [self.workers[i].recv() for i in id]
+                ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/libero/libero/libero/envs/venv.py", line 437, in recv
+    result = self.parent_remote.recv()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yajatyadav/.local/share/uv/python/cpython-3.11.12-linux-x86_64-gnu/lib/python3.11/multiprocessing/connection.py", line 250, in recv
+    buf = self._recv_bytes()
+          ^^^^^^^^^^^^^^^^^^
+  File "/home/yajatyadav/.local/share/uv/python/cpython-3.11.12-linux-x86_64-gnu/lib/python3.11/multiprocessing/connection.py", line 430, in _recv_bytes
+    buf = self._recv(4)
+          ^^^^^^^^^^^^^
+  File "/home/yajatyadav/.local/share/uv/python/cpython-3.11.12-linux-x86_64-gnu/lib/python3.11/multiprocessing/connection.py", line 395, in _recv
+    chunk = read(handle, remaining)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

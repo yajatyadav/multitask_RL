@@ -119,8 +119,7 @@ def extract_all_libero_env_names(env_name):
         suites = [suite]
         scenes = [scene]
 
-    print(f"suites: {suites}, scenes: {scenes}")
-            
+    print(f"suites: {suites}, scenes: {scenes}")           
 
 
     all_names = {}
@@ -138,7 +137,7 @@ def extract_all_libero_env_names(env_name):
     return all_names
 
 
-def make_env(env_name, num_parallel_envs, render_resolution=128, keys_to_load=[], seed=0):
+def make_env(env_name, num_parallel_envs, use_hardcoded_eval_envs=False, render_resolution=128, keys_to_load=[], seed=0):
     """
     NOTE: is now returning a LIST of environments, thus the main script needs to sequentiall loop and call evaluate() on each..
     """
@@ -167,24 +166,23 @@ def make_env(env_name, num_parallel_envs, render_resolution=128, keys_to_load=[]
     print("evaluation environment will return keys: ", keys_to_load)
 
     all_env_names = extract_all_libero_env_names(env_name)
-
     print(f"All possible envs, sorted alphabetically: there are {len(all_env_names)} total envs")
     
     HARDCODED_EVAL_ENVS = {
         "libero_spatial": [
-            "pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate",
+            "libero_spatial-pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate",
             
         ],
         "libero_object": [
-            'pick_up_the_alphabet_soup_and_place_it_in_the_basket',
+            'libero_object-pick_up_the_alphabet_soup_and_place_it_in_the_basket',
         ],
         "libero_goal": [
-            "open_the_middle_drawer_of_the_cabinet",
+            "libero_goal-open_the_middle_drawer_of_the_cabinet",
         ],
         "libero_90": [
-            "KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet",
-            "LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket",
-            "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy",
+            "libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet",
+            "libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket",
+            "libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy",
         ],
     }
     ## take 10 interspersed envs: 4 from libero_90, 2 from libero_spatial, 2 from libero_object, 2 from libero_goal
@@ -192,9 +190,16 @@ def make_env(env_name, num_parallel_envs, render_resolution=128, keys_to_load=[]
     # for suite, suite_eval_envs in all_env_names.items():
         # indices = np.linspace(0, len(suite_eval_envs)-1, 4 if suite == "libero_90" else 2, dtype=int)
         # envs_to_eval.extend([suite_eval_envs[i] for i in indices])
+
+    
     envs_to_eval = []
-    for suite, suite_eval_envs in HARDCODED_EVAL_ENVS.items():
-        envs_to_eval.extend([f"{suite}-{env}" for env in suite_eval_envs])
+    if use_hardcoded_eval_envs:
+        for suite, suite_eval_envs in HARDCODED_EVAL_ENVS.items():
+            envs_to_eval.extend([env for env in suite_eval_envs])
+    else:
+        for suite, suite_eval_envs in all_env_names.items():
+            envs_to_eval.extend([env for env in suite_eval_envs])
+    
     print(f" {len(envs_to_eval)=} Environments to evaluate: {envs_to_eval}")
 
     env_list, names_to_return = [], []
@@ -207,7 +212,6 @@ def make_env(env_name, num_parallel_envs, render_resolution=128, keys_to_load=[]
             render_resolution=render_resolution,
             obs_keys=keys_to_load,
             keys_to_output_map=keys_to_output_map,
-            # max_episode_length=max_episode_length,
             normalization_path=normalization_path,
         )
         env_list.append(env)
@@ -239,7 +243,7 @@ def stack_dict_list(dict_list):
     keys = dict_list[0].keys()
     return {k: np.concatenate([d[k] for d in dict_list], axis=0) for k in keys}
 
-def get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load):
+def get_dataset(env, env_name, task_name, augmentation_type, keys_to_load):
     # data holders
     observations = []
     actions = []
@@ -248,13 +252,13 @@ def get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load):
     rewards = []
     masks = []
 
-    def process_task(rm_dataset, flip_rewards, this_task_name):
+    def process_task(rm_dataset, zero_out_rewards, target_task_name):
         # print(f"processing dataset for task {this_task_name}")
         demos = list(rm_dataset["data"].keys())
         inds = np.argsort([int(elem[5:]) for elem in demos])
         demos = [demos[i] for i in inds] # sort demos!
 
-        task_embedding = OneHotEmbedding_Libero.encode(this_task_name)
+        task_embedding = OneHotEmbedding_Libero.encode(target_task_name)
 
         this_task_num_timesteps = 0
         for ep in demos:
@@ -277,6 +281,7 @@ def get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load):
                     )
                 else:
                     obs[k] = np.array(rm_dataset[f"data/{ep}/obs/{k}"])
+            
             for k in keys_to_load:
                 if k == 'states':
                     obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]
@@ -302,8 +307,9 @@ def get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load):
 
             # read in rewards, and set all to -1 if not positive task
             r = np.array(rm_dataset["data/{}/rewards".format(ep)], dtype=np.float32)
-            if flip_rewards:
-                r = np.full_like(r, -1.0)
+            # the raw data holds 0/1 rewards. if this is a positive task, we will keep the rewards as is, otherwise we will set ALL to 0
+            if zero_out_rewards:
+                r = np.full_like(r, 0.0)
 
             # append to data holders
             observations.append(obs)
@@ -316,73 +322,77 @@ def get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load):
 
     
     # crawl through env_name directory, and add each task's demos
-    num_timesteps = 0
     libero_dataset_dir = os.path.join(os.path.dirname(os.getcwd()), 'datasets/raw_libero')
-
-    
-    # suites = []
-    # scenes = []
-    # if env_name.startswith("all_libero"):
-    #     suites = ["libero_spatial", "libero_object", "libero_goal", "libero_90"]
-    #     scenes = ['*', '*', '*', '*', '*']
-    # else:
-    #     # in case of single suite
-    #     suite = env_name.split("-")[0]
-    #     scene = ''
-    #     if suite == "libero_90":
-    #         scene = env_name.split("-")[1]
-    #     suites = [suite]
-    #     scenes = [scene]
-    # suites = sorted(suites)
-    # scenes = sorted(scenes)
-
     all_libero_env_names = extract_all_libero_env_names(env_name)
     print(f"🤪🤪🤪 all_libero_env_names: {all_libero_env_names}")
-    ## TODO(YY): fix later, the regex is actually combining libero_90 kitchen_scene_1 and kitchen_scene_10 under kitchen_scene_1
-    distinct_scenes = {"libero_spatial": ["*"], "libero_object": ["*"], "libero_goal": ["*"], "libero_90": []}
-    for env_name in all_libero_env_names['libero_90']:
-        prefix = env_name.split("-")[1]
-        get_scene_prefix = lambda s: (re.match(r'^[^\d]*\d+', s) or re.match(r'.*', s)).group()
-        scene = get_scene_prefix(prefix)
-        if scene not in distinct_scenes['libero_90']:
-            distinct_scenes['libero_90'].append(scene)
+    distinct_scenes = {}
+    for suite in all_libero_env_names.keys():
+        if suite != "libero_90":
+            distinct_scenes[suite] = ["*"]
+            continue        
+        distinct_scenes[suite] = []
+        for env_name in all_libero_env_names[suite]:
+            prefix = env_name.split("-")[1]
+            get_scene_prefix = lambda s: (re.match(r'^[^\d]*\d+', s) or re.match(r'.*', s)).group()
+            scene = get_scene_prefix(prefix)
+            if scene not in distinct_scenes[suite]:
+                distinct_scenes[suite].append(scene)    
     print(f"🤪🤪🤪 distinct_scenes: {distinct_scenes}")
 
-    j = 0
-    for suite in distinct_scenes.keys():
-        for scene in distinct_scenes[suite]:
-            suite = suite.upper()
-            pattern = os.path.join(libero_dataset_dir, suite, f"{scene.upper()}_*.hdf5")
+    # using switch case + functions here to handle the different augmentation types
+    match augmentation_type:
+        case 'none':
+            num_timesteps = none_augmentation(distinct_scenes, process_task, libero_dataset_dir)
+        case 'task':
+            raise NotImplementedError("Augmentation type 'task' is not supported yet.")
+        case 'first':
+            raise NotImplementedError("Augmentation type 'first' is not supported yet.")
+        case 'exhaustive':
+            num_timesteps = exhaustive_augmentation(distinct_scenes, process_task, libero_dataset_dir)
+        case _:
+            raise ValueError(f"Invalid augmentation type: {augmentation_type}")
+    # j = 0
+    # for suite in distinct_scenes.keys():
+    #     for scene in distinct_scenes[suite]:
+    #         suite = suite.upper()
+    #         pattern = os.path.join(libero_dataset_dir, suite, f"{scene.upper()}_*.hdf5")
 
-            # print how many files for this scene
-            print(f"😈😈😈 {suite=} {scene=} , there are {len(sorted(glob.glob(pattern)))} files for this suite + scene")
+    #         # print how many files for this scene
+    #         print(f"😈😈😈 {suite=} {scene=} , there are {len(sorted(glob.glob(pattern)))} files for this suite + scene")
 
-            ##TODO(YY): for now, if task name is blank, we will use the FIRST task for this scene as the positive example
-            if task_name == '':
-                first_task_fp = sorted(glob.glob(pattern))[0]
-                first_task_name = os.path.basename(first_task_fp).split(".")[0][:-5] # remove .hdf5 and _demo to get scene+task name separated by underscores
-                if "SCENE" in first_task_name:
-                    first_task_name = extract_libero_task_name_only(first_task_name)
+    #         ##TODO(YY): for now, if task name is blank, we will use the FIRST task for this scene as the positive example
+    #         if task_name == '':
+    #             first_task_fp = sorted(glob.glob(pattern))[0]
+    #             first_task_name = os.path.basename(first_task_fp).split(".")[0][:-5] # remove .hdf5 and _demo to get scene+task name separated by underscores
+    #             if "SCENE" in first_task_name:
+    #                 first_task_name = extract_libero_task_name_only(first_task_name)
+    #             target_task_name = first_task_name
+    #         else:
+    #             target_task_name = task_name
 
-            print(f"😈😈😈 {first_task_name=}")
+    #         print(f"😈😈😈 {target_task_name=}")
 
-            for filepath in sorted(glob.glob(pattern)):
-                this_task_name = os.path.basename(filepath).split(".")[0][:-5] # remove .hdf5 and _demo to get scene+task name separated by underscores
-                _check_dataset_exists(f"{suite}-{this_task_name}")
+    #         for filepath in sorted(glob.glob(pattern)):
+    #             this_task_name = os.path.basename(filepath).split(".")[0][:-5] # remove .hdf5 and _demo to get scene+task name separated by underscores
+    #             _check_dataset_exists(f"{suite}-{this_task_name}")
                 
-                if "SCENE" in this_task_name:
-                    this_task_name = extract_libero_task_name_only(this_task_name)          
-                is_positive_task = this_task_name == first_task_name # we will flip reward sign if using demos from same scene but for different task
+    #             if "SCENE" in this_task_name:
+    #                 this_task_name = extract_libero_task_name_only(this_task_name)          
+    #             is_positive_task = this_task_name == target_task_name # we will flip reward sign if using demos from same scene but for different task
 
-                flip_rewards = augment_negative_demos and not is_positive_task
+    #             process_this_dataset = is_positive_task or augment_negative_demos
+    #             if not process_this_dataset:
+    #                 continue
+                
+    #             flip_rewards = not is_positive_task
 
-                # now actually load the dataset and relabel language + flip rewards if needed
-                rm_dataset = h5py.File(filepath, "r")
-                this_task_num_timesteps = process_task(rm_dataset, flip_rewards, this_task_name)
-                num_timesteps += this_task_num_timesteps
-                print(f"🥳🥳🥳 {j=} Dataset {this_task_name} has {this_task_num_timesteps}, and {is_positive_task=}")
-                j += 1
-    print(f"the total size of the dataset is {num_timesteps}")
+    #             # now actually load the dataset and relabel language + flip rewards if needed
+    #             rm_dataset = h5py.File(filepath, "r")
+    #             this_task_num_timesteps = process_task(rm_dataset, flip_rewards, target_task_name)
+    #             num_timesteps += this_task_num_timesteps
+    #             print(f"🥳🥳🥳 {j=} Dataset {this_task_name} has {this_task_num_timesteps}, and {flip_rewards=}, relabeled to {target_task_name=}")
+    #             j += 1
+    # print(f"the total size of the dataset is {num_timesteps}")
 
     # once all done, create the dataset object
     return Dataset.create(
@@ -395,6 +405,64 @@ def get_dataset(env, env_name, task_name, augment_negative_demos, keys_to_load):
     )
 
 
+def none_augmentation(distinct_scenes, process_task_fn, libero_dataset_dir):
+    j = 0
+    num_timesteps = 0
+    for suite in distinct_scenes.keys():
+        scenes = distinct_scenes[suite]
+        for scene in scenes:
+            suite = suite.upper()
+            scene = scene.upper()
+            pattern = os.path.join(libero_dataset_dir, suite, f'{scene}_*.hdf5')
+            for filepath in sorted(glob.glob(pattern)):
+                target_task_name = os.path.basename(filepath).split(".")[0][:-5]
+                _check_dataset_exists(f"{suite}-{target_task_name}")
+                if "SCENE" in target_task_name:
+                    target_task_name = extract_libero_task_name_only(target_task_name)
+                print(f"😈😈😈 {target_task_name=}")
+                zero_out_rewards = False
+                rm_dataset = h5py.File(filepath, "r")
+                this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, target_task_name)
+                num_timesteps += this_task_num_timesteps
+                print(f"🥳🥳🥳 {j=} Dataset {target_task_name} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {target_task_name=}")
+                j += 1
+    print(f"the total size of the dataset is {num_timesteps}")
+    return num_timesteps
+                
+ 
+def exhaustive_augmentation(distinct_scenes, process_task_fn, libero_dataset_dir):
+    j = 0
+    num_timesteps = 0
+    for suite in distinct_scenes.keys():
+        scenes = distinct_scenes[suite]
+        for scene in scenes:
+            suite = suite.upper()
+            scene = scene.upper()
+            pattern = os.path.join(libero_dataset_dir, suite, f'{scene}_*.hdf5')
+            # print how many files for this scene
+            print(f"😈😈😈 {pattern=} {suite=} {scene=} , there are {len(sorted(glob.glob(pattern)))} files for this suite + scene")
+
+            for filepath in sorted(glob.glob(pattern)):
+                target_task_name = os.path.basename(filepath).split(".")[0][:-5]
+                if "SCENE" in target_task_name:
+                    target_task_name = extract_libero_task_name_only(target_task_name)
+                print(f"😈😈😈 {target_task_name=}")
+                
+                for fp in sorted(glob.glob(pattern)):
+                    this_task_name = os.path.basename(fp).split(".")[0][:-5]
+                    _check_dataset_exists(f"{suite.upper()}-{this_task_name}")
+                    if "SCENE" in this_task_name:
+                        this_task_name = extract_libero_task_name_only(this_task_name)                    
+                                     
+                    zero_out_rewards = this_task_name != target_task_name
+                    rm_dataset = h5py.File(fp, "r")
+                    this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, target_task_name)
+                    num_timesteps += this_task_num_timesteps
+                    print(f"🥳🥳🥳 {j=} Dataset {this_task_name} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {target_task_name=}")
+                    j += 1
+    print(f"the total size of the dataset is {num_timesteps}")
+    return num_timesteps
+
 
 def extract_libero_task_name_only(s):
 
@@ -403,96 +471,6 @@ def extract_libero_task_name_only(s):
         end_index = match.end()  # Position right after the number
         return s[end_index + 1:]  # Start 1 position after
     return ""  # No number found
-
-
-
-# def get_dataset_old(env, env_name, task_name, augment_negative_demos, keys_to_load):
-#     # data holders
-#     observations = []
-#     actions = []
-#     next_observations = []
-#     terminals = []
-#     rewards = []
-#     masks = []
-
-#     def process_task(rm_dataset, is_positive_task):
-#         demos = list(rm_dataset["data"].keys())
-#         inds = np.argsort([int(elem[5:]) for elem in demos])
-#         demos = [demos[i] for i in inds] # sort demos!
-
-#         this_task_num_timesteps = 0
-#         for ep in demos:
-#             a = np.array(rm_dataset["data/{}/actions".format(ep)])
-#             this_task_num_timesteps += a.shape[0]
-#             obs, next_obs = [], []
-#             for k in keys_to_load:
-#                 if k == 'states':
-#                     obs.append(np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]) # drop the first entry, which is the timestep
-#                 else:
-#                     obs.append(np.array(rm_dataset[f"data/{ep}/{k}"]))
-#             for k in keys_to_load:
-#                 if k == 'states':
-#                     obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])[:, 1:]
-#                 else:
-#                     obs_array = np.array(rm_dataset[f"data/{ep}/{k}"])
-#                 next_obs.append(np.concatenate([obs_array[1:], obs_array[-1:]], axis=0)) # make next obs by shifting obs array by 1, and then repeating the last element of obs array so obs and next_obs have same size
-#             obs = np.concatenate(obs, axis=-1)
-#             next_obs = np.concatenate(next_obs, axis=-1)
-#             dones = np.array(rm_dataset["data/{}/dones".format(ep)])
-
-#             # read in rewards, and set all to -1 if not positive task
-#             r = np.array(rm_dataset["data/{}/rewards".format(ep)], dtype=np.float32)
-#             if not is_positive_task:
-#                 r = np.full_like(r, -1.0)
-
-#             # append to data holders
-#             observations.append(obs.astype(np.float32))
-#             actions.append(a.astype(np.float32))
-#             rewards.append(r.astype(np.float32))
-#             terminals.append(dones.astype(np.float32))
-#             masks.append(1.0 - dones.astype(np.float32))
-#             next_observations.append(next_obs.astype(np.float32))
-#         return this_task_num_timesteps
-
-    
-#     # crawl through env_name directory, and add each task's demos
-#     num_timesteps = 0
-#     libero_dataset_dir = os.path.join(os.path.dirname(os.getcwd()), 'datasets/raw_libero')
-#     suite, scene = env_name.split("-")
-#     env_demos_path = os.path.join(libero_dataset_dir, suite.upper())
-#     pattern = os.path.join(env_demos_path, f"{scene.upper()}*.hdf5")
-#     for filepath in sorted(glob.glob(pattern)):
-#         this_task_name = os.path.basename(filepath).split(".")[0][:-5] # remove .hdf5 and _demo to get scene+task name separated by underscores
-#         _check_dataset_exists(f"{env_name}-{this_task_name}")
-
-#         task_only_name = "_".join(this_task_name.split("_")[2:]) # remove the scene prefix to get just task name separated by underscores
-#         is_positive_task = task_only_name == task_name # we will flip reward sign if using demos from same scene but for different task
-
-#         # if augment_negative_demos is disabled, we will skip datasets for tasks corresponding to other tasks in the same scene
-#         if not augment_negative_demos and not is_positive_task:
-#             continue
-
-#         # get the dataset for this task, and process these task demos
-#         with h5py.File(filepath, "r") as rm_dataset:
-#             this_task_num_timesteps = process_task(rm_dataset, is_positive_task)
-#             num_timesteps += this_task_num_timesteps
-#             print(f"the size of the dataset for task {this_task_name} is {this_task_num_timesteps}, and {is_positive_task=}")
-
-    
-#     print(f"the total size of the dataset is {num_timesteps}")
-#     # once all done, create the dataset object
-#     return Dataset.create(
-#         observations=np.concatenate(observations, axis=0),
-#         actions=np.concatenate(actions, axis=0),
-#         rewards=np.concatenate(rewards, axis=0),
-#         terminals=np.concatenate(terminals, axis=0),
-#         masks=np.concatenate(masks, axis=0),
-#         next_observations=np.concatenate(next_observations, axis=0),
-#     )
-
-# ============================================================================
-# NoRenderEnv - Environment without any rendering for subprocess compatibility
-# ============================================================================
 
 class NoRenderEnv(ControlEnv):
     """
@@ -738,14 +716,6 @@ class LiberoEnvWrapper(gym.Env):
                 camera_name=camera_name,
             )
     
-    # def get_segmentation_of_interest(self, segmentation_image):
-    #     """Get segmentation of objects of interest"""
-    #     if hasattr(self.env, 'get_segmentation_of_interest'):
-    #         return self.env.get_segmentation_of_interest(segmentation_image)
-    #     else:
-    #         # If not a segmentation env, return as-is
-    #         return segmentation_image
-    
     def get_sim_state(self):
         """Get current simulation state"""
         return self.env.get_sim_state()
@@ -797,7 +767,6 @@ def get_libero_task_init_states(
 
 
 def get_libero_task_from_env(env_name):
-    
     suite_str, scene_task_str = env_name.split("-")
 
     # Get task suite
@@ -934,6 +903,7 @@ class LiberoTopLevelEnvWrapper(gym.Env):
         # create a single offscreen env to get the task embedding...
         self.task_embedding = OneHotEmbedding_Libero.encode(get_libero_task_from_env(env_name).language.replace(" ", "_").lower())
         self.env_str = env_name
+    
     def get_eval_env(self):
         return self.vec_env
     
@@ -945,6 +915,10 @@ class LiberoTopLevelEnvWrapper(gym.Env):
 
     def get_env_str(self):
         return self.env_str
+
+
+
+
 
 if __name__ == "__main__":
     # for testing 
