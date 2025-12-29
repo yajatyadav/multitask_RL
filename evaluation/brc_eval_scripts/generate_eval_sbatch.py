@@ -113,7 +113,7 @@ def generate_sbatch_script(
     for i, n in enumerate(n_vals):
         # Build the python command
         python_cmd = (
-            f'python eval_best_of_n_single.py '
+            f'uv run eval_best_of_n_single.py '
             f'--n {n} '
             f'--actor_restore_path "{actor_restore_path}" '
             f'--critic_restore_path "{critic_restore_path}" '
