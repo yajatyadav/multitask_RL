@@ -137,7 +137,6 @@ def evaluate_single_n(n, env_name, task_name, actor_restore_path, critic_restore
         pickle.dump(infos, f)
     
     print(f"Results saved to {output_file}")
-    wandb.finish()
     
     return eval_info
 
