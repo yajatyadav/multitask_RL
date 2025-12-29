@@ -6,12 +6,13 @@ import os
 import argparse
 from typing import List
 import time as time_module
-
+import wandb    
 def generate_sbatch_script(
     n_vals: List[int],
     actor_restore_path: str,
     critic_restore_path: str,
     wandb_name: str,
+    wandb_run_id: str = None,
     output_file: str = None,
     output_file_dir: str = 'scripts/shell_scripts',
     env_name: str = 'libero_90-living_room_scene1',
@@ -19,6 +20,7 @@ def generate_sbatch_script(
     wandb_entity: str = 'yajatyadav',
     wandb_project: str = 'multitask_RL',
     wandb_group: str = 'eval_libero_best_of_N',
+   
     output_dir: str = './eval_results',
     # SBATCH parameters
     account: str = 'co_rail',
@@ -111,14 +113,14 @@ def generate_sbatch_script(
     lines = ['#!/bin/bash', '']
 
     # initialize wandb run and get run id
-    import wandb
-    run = wandb.init(
-        entity=wandb_entity,
-        project=wandb_project,
-        group=wandb_group,
-        name=wandb_name,
-    )
-    run_id = run.id
+    if wandb_run_id is None:
+        run = wandb.init(
+            entity=wandb_entity,
+            project=wandb_project,
+            group=wandb_group,
+            name=wandb_name,
+        )
+        wandb_run_id = run.id
     
     for i, n in enumerate(n_vals):
         # Build the python command
@@ -133,7 +135,7 @@ def generate_sbatch_script(
             f'--wandb_project {wandb_project} '
             # f'--wandb_group {wandb_group} '
             # f'--wandb_name {wandb_name} '
-            f'--wandb_run_id {run_id} '
+            f'--wandb_run_id {wandb_run_id} '
             f'--output_dir {output_dir}'
         )
         
@@ -236,6 +238,8 @@ if __name__ == '__main__':
     parser.add_argument('--output_file', type=str,
     required=False,
                        help='Output shell script filename')
+    parser.add_argument('--wandb_run_id', type=str, default=None,
+                       help='Wandb run id, if provided evals will get logged under this run id')
     
     args = parser.parse_args()
     
@@ -250,4 +254,5 @@ if __name__ == '__main__':
             env_name=args.env_name,
             task_name=args.task_name,
             wandb_name=args.wandb_name,
+            wandb_run_id=args.wandb_run_id,
         )

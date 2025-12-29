@@ -53,7 +53,7 @@ NUM_VIDEO_EPISODES = 5
 VIDEO_FRAME_SKIP = 3
 
 
-def eval_agent(agent, eval_env, example_batch, names_to_return, n, logger):
+def eval_agent(agent, eval_env, example_batch, critic_restore_ckpt_number, names_to_return, n, logger):
     print(f"Evaluating agent on {len(eval_env)} environments")
     all_eval_info = []
     for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=len(eval_env), desc="Evaluating multi-task", position=0, leave=False):
@@ -69,14 +69,14 @@ def eval_agent(agent, eval_env, example_batch, names_to_return, n, logger):
         if len(renders) > 0:
             # value_and_reward_visualization(trajs, agent, FLAGS.save_dir, log_step)
             eval_info['video'] = get_wandb_video(renders)
-        logger.log(eval_info, f"eval_{names_to_return[j]}", step=n)
+        logger.log(eval_info, f"eval_ckpt_{critic_restore_ckpt_number}_{names_to_return[j]}", step=n)
         # remove video before taking mean
         if 'video' in eval_info:
             del eval_info['video']
 
     # aggregate eval info via mean, then log under "eval" prefix
     eval_info = {k: np.mean([eval_info[k] for eval_info in all_eval_info]) for k in all_eval_info[0].keys()}
-    logger.log(eval_info, "eval", step=n)
+    logger.log(eval_info, f"eval_ckpt_{critic_restore_ckpt_number}", step=n)
     print(f"Eval info: {eval_info}")
     return eval_info
 
@@ -99,7 +99,7 @@ def evaluate_single_n(n, env_name, task_name, actor_restore_path, critic_restore
         entity=wandb_entity,
         project=wandb_project,
         id=wandb_run_id,
-        resume="must",    
+        resume="allow",    
     )
 
     # Setup logging
@@ -115,10 +115,11 @@ def evaluate_single_n(n, env_name, task_name, actor_restore_path, critic_restore
                                example_batch['actions'], agent_config)
 
     print(f"Restoring agent from actor {actor_restore_path} and critic {critic_restore_path}")
+    critic_restore_ckpt_number  = int(os.path.basename(critic_restore_path).split('.')[0].split('_')[-1]) # params_125000.pkl -> 125000
     agent = restore_agent_actor_critic_separately(agent, actor_restore_path, critic_restore_path)
     
     # Evaluate
-    eval_info = eval_agent(agent, eval_env, example_batch, names_to_return, n, logger)
+    eval_info = eval_agent(agent, eval_env, example_batch, critic_restore_ckpt_number, names_to_return, n, logger)
     
     # Save results
     infos = {

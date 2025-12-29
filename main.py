@@ -1,4 +1,5 @@
 import os
+import socket
 xla_flags = os.environ.get('XLA_FLAGS', '')
 xla_flags += ' --xla_gpu_triton_gemm_any=True'
 os.environ['XLA_FLAGS'] = xla_flags
@@ -15,6 +16,7 @@ from envs.libero_utils import is_libero_env
 
 from plotting.plot_Q_value_visuals import value_and_reward_visualization
 from utils.flax_utils import save_agent
+from evaluation.brc_eval_scripts.generate_eval_sbatch import generate_sbatch_script
 from utils.datasets import Dataset, ReplayBuffer
 # from evaluation import evaluate as evaluate_others
 from evaluation_libero import evaluate as evaluate_libero
@@ -46,6 +48,7 @@ flags.DEFINE_integer('buffer_size', 2000000, 'Replay buffer size.')
 flags.DEFINE_integer('log_interval', 5000, 'Logging interval.')
 flags.DEFINE_integer('num_input_output_to_log', 3, 'Number of transitions to log to wandb.')
 flags.DEFINE_integer('eval_interval', 100000, 'Evaluation interval.')
+
 flags.DEFINE_integer('save_interval', -1, 'Save interval.')
 flags.DEFINE_integer('start_training', 5000, 'when does training start')
 
@@ -59,6 +62,11 @@ flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
 
 flags.DEFINE_float('discount', 0.99, 'discount factor')
 
+flags.DEFINE_list('eval_hosts', ['savio', 'brc', 'cluster'], 
+                  'List of hostname keywords that trigger automatic evaluation on BRC')
+flags.DEFINE_string('eval_actor_restore_path', None, 'Path to actor checkpoint for evaluation.')
+flags.DEFINE_list('eval_best_of_N_vals', [1, 2, 4, 8, 16, 32, 64, 128], nargs='+', help='List of n values to evaluate for best-of-N.')
+flags.DEFINE_boolean('eval_best_of_N_brc', True, 'Whether to evaluate best-of-N on BRC.')
 flags.DEFINE_integer('eval_episodes', 50, 'Number of evaluation episodes.')
 flags.DEFINE_integer('num_parallel_envs', 5, 'Number of parallel environments for evaluation.')
 flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
@@ -88,6 +96,8 @@ class LoggingHelper:
         self.wandb_logger.log({f'{prefix}/{k}': v for k, v in data.items()}, step=step)
 
 def main(_):
+    hostname = socket.gethostname()
+    print(f"main.py:😈😈😈 Starting main.py on host {hostname}")
     exp_name = FLAGS.exp_name_prefix + get_exp_name(FLAGS.seed)
     run = setup_wandb(entity='yajatyadav', project='multitask_RL', group=FLAGS.run_group, name=exp_name)
     
@@ -258,10 +268,35 @@ def main(_):
         # saving
         if FLAGS.save_interval > 0 and i % FLAGS.save_interval == 0:
             save_agent(agent, FLAGS.save_dir, log_step)
+            
+            # if we are saving and on BRC, no cost to evaluate in background as well
+            if any(host in hostname for host in FLAGS.eval_hosts) and FLAGS.eval_best_of_N_brc:
+                print(f"main.py:😈😈😈 Evaluating best-of-N in background w/ n values: {FLAGS.eval_best_of_N_vals}")
+                n_vals = FLAGS.eval_best_of_N_vals
+                assert FLAGS.eval_actor_restore_path is not None
+                actor_restore_path = FLAGS.eval_actor_restore_path
+                critic_restore_path = os.path.join(FLAGS.save_dir,f"params_{log_step}.pkl")
+                wandb_run_id = run.id
+                wandb_name = 'EVAL_' + exp_name
+                output_file = generate_sbatch_script(
+                    n_vals=n_vals,
+                    actor_restore_path=actor_restore_path,
+                    critic_restore_path=critic_restore_path,
+                    env_name=FLAGS.env_name,
+                    task_name=FLAGS.task_name,
+                    wandb_name=wandb_name,
+                    wandb_run_id=wandb_run_id,
+                )
+                os.chmod(output_file, 0o755)
+                os.system(f'bash {output_file}')
+
+
+                
 
         # eval: do one at very start, very end, and in b/w using eval_interval. but if eval_interval is -1, we skip evaling
         if (FLAGS.eval_interval != -1) and (i == FLAGS.offline_steps or i == 5 or i % FLAGS.eval_interval == 0):
             # during eval, the action chunk is executed fully
+
 
             all_eval_info = []
             for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=len(eval_env), desc="Evaluating multi-task", position=0,leave=False):
