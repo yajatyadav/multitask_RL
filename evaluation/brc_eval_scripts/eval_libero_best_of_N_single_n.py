@@ -82,7 +82,7 @@ def eval_agent(agent, eval_env, example_batch, names_to_return, n, logger):
 
 
 def evaluate_single_n(n, env_name, task_name, actor_restore_path, critic_restore_path, 
-                     wandb_entity, wandb_project, wandb_group, wandb_name, output_dir):
+                     wandb_entity, wandb_project, wandb_run_id, output_dir):
     """Evaluate agent for a single n value."""
     
     # Setup environment and datasets
@@ -98,8 +98,8 @@ def evaluate_single_n(n, env_name, task_name, actor_restore_path, critic_restore
     wandb.init(
         entity=wandb_entity,
         project=wandb_project,
-        group=wandb_group,
-        name=wandb_name,
+        id=wandb_run_id,
+        resume="must",    
     )
 
     # Setup logging
@@ -166,10 +166,12 @@ if __name__ == "__main__":
                        help='Wandb entity')
     parser.add_argument('--wandb_project', type=str, default='multitask_RL',
                        help='Wandb project')
-    parser.add_argument('--wandb_group', type=str, default='eval_libero_best_of_N',
-                       help='Wandb group')
-    parser.add_argument('--wandb_name', type=str, required=True,
-                       help='Wandb run name')
+    # parser.add_argument('--wandb_group', type=str, default='eval_libero_best_of_N',
+                    #    help='Wandb group')
+    # parser.add_argument('--wandb_name', type=str, required=True,
+                    #    help='Wandb run name')
+    parser.add_argument('--wandb_run_id', type=str, required=True,
+                       help='Wandb run id')
     
     # Output arguments
     parser.add_argument('--output_dir', type=str, default='./eval_results',
@@ -185,7 +187,8 @@ if __name__ == "__main__":
         critic_restore_path=args.critic_restore_path,
         wandb_entity=args.wandb_entity,
         wandb_project=args.wandb_project,
-        wandb_group=args.wandb_group,
-        wandb_name=args.wandb_name,
-        output_dir=args.output_dir
+        # wandb_group=args.wandb_group,
+        # wandb_name=args.wandb_name,
+        wandb_run_id=args.wandb_run_id,
+        output_dir=args.output_dir  
     )

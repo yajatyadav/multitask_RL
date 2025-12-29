@@ -109,6 +109,16 @@ def generate_sbatch_script(
     
     # Generate the shell script
     lines = ['#!/bin/bash', '']
+
+    # initialize wandb run and get run id
+    import wandb
+    run = wandb.init(
+        entity=wandb_entity,
+        project=wandb_project,
+        group=wandb_group,
+        name=wandb_name,
+    )
+    run_id = run.id
     
     for i, n in enumerate(n_vals):
         # Build the python command
@@ -121,8 +131,9 @@ def generate_sbatch_script(
             f'--task_name "{task_name}" '
             f'--wandb_entity {wandb_entity} '
             f'--wandb_project {wandb_project} '
-            f'--wandb_group {wandb_group} '
-            f'--wandb_name {wandb_name} '
+            # f'--wandb_group {wandb_group} '
+            # f'--wandb_name {wandb_name} '
+            f'--wandb_run_id {run_id} '
             f'--output_dir {output_dir}'
         )
         
@@ -154,6 +165,7 @@ def generate_sbatch_script(
     print(f"N values: {n_vals}")
     print(f"\nTo submit all jobs, run:")
     print(f"  bash {output_file}")
+    
     
     return output_file
 
