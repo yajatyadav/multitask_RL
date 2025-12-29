@@ -141,7 +141,7 @@ def generate_sbatch_script(
 
     # if output_file is not provided, use wandb_name + timestamp
     if output_file is None:
-        output_file = os.path.join(output_file_dir, f'eval_libero_best_of_N_{wandb_name}_{time_module.strftime("%Y%m%d_%H%M%S")}.sh')
+        output_file = os.path.join(output_file_dir, f'eval_libero_best_of_N_{wandb_name}.sh')
     
     with open(output_file, 'w') as f:
         f.write(script_content)
