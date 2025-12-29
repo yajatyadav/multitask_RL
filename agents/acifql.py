@@ -76,6 +76,10 @@ class ACIFQLAgent(flax.struct.PyTreeNode):
 
     def actor_loss(self, batch, grad_params, rng=None):
         """Compute the behavioral flow-matching actor loss."""
+        if self.config["train_actor"] == False:
+            return 0, {
+                'actor_loss': 0,
+            }
         if self.config["action_chunking"]:
             batch_actions = jnp.reshape(batch["actions"], (batch["actions"].shape[0], -1))
         else:
@@ -288,14 +292,15 @@ def get_config():
             action_dim=ml_collections.config_dict.placeholder(int),  # Action dimension (will be set automatically).
             lr=3e-4,  # Learning rate.
             batch_size=256,  # Batch size.
-            actor_hidden_dims=(512, 512, 512, 512),  # Actor network hidden dimensions.
+            train_actor=False,  # Whether to train the actor. By default False as we only train Q values with this agent, and check them on an already-trained actor.
+            actor_hidden_dims=(2,),  # Actor network hidden dimensions.
             value_hidden_dims=(512, 512, 512, 512),  # Value network hidden dimensions.
             layer_norm=True,  # Whether to use layer normalization.
             actor_layer_norm=False,  # Whether to use layer normalization for the actor.
             discount=0.99,  # Discount factor.
             tau=0.005,  # Target network update rate.
             expectile=0.9,  # IQL expectile.
-            num_samples=32,  # Number of action samples for rejection sampling.
+            num_samples=1,  # Number of action samples for rejection sampling. # TODO(YY): keeping at 1 since during training, we only want to plot perf of BC flow policy...
             flow_steps=10,  # Number of flow steps.
             encoder=ml_collections.config_dict.placeholder(str),  # Visual encoder name (None, 'impala_small', etc.).
             horizon_length=ml_collections.config_dict.placeholder(int), # will be set

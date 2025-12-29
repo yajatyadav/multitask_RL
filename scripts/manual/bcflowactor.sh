@@ -15,21 +15,47 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=test_bcflowactor_learning \
---run_group=bcflowactor_test \
+--exp_name_prefix=bcflowactor_livingroomscene1__alphabet_soup_25_demos_IMAGE_ \
+--run_group=bcflowactor_only \
 --env_name=libero_90-living_room_scene1 \
---task_name='' \
+--task_name='pick_up_the_alphabet_soup_and_put_it_in_the_basket' \
 --augmentation_type=none \
+--num_demos_to_use_per_task=25 \
 \
---use_pixels=False \
---use_proprio=False \
---use_language=False \
---use_mj_sim_state=True \
+--use_pixels=True \
+--use_proprio=True \
+--use_language=True \
+--use_mj_sim_state=False \
 \
---offline_steps=1000000 \
---eval_interval=50000 \
---save_interval=50000 \
+--offline_steps=250000 \
+--eval_interval=20000 \
+--save_interval=20000 \
 \
 --horizon_length=5 \
 --agent=agents/acbcflowactor.py \
---agent.encoder=state_space \
+--agent.encoder=combined_encoder_small \
+
+
+
+
+
+# uv run main.py \
+# --exp_name_prefix=bcflowactor_livingroomscene1__alphabet_soup_ketchup_25_demos_IMAGE_ \
+# --run_group=bcflowactor_only \
+# --env_name=libero_90-living_room_scene1 \
+# --task_name='pick_up_the_alphabet_soup_and_put_it_in_the_basket|pick_up_the_ketchup_and_put_it_in_the_basket' \
+# --augmentation_type=none \
+# --num_demos_to_use_per_task=25 \
+# \
+# --use_pixels=True \
+# --use_proprio=True \
+# --use_language=True \
+# --use_mj_sim_state=False \
+# \
+# --offline_steps=1000000 \
+# --eval_interval=20000 \
+# --save_interval=20000 \
+# \
+# --horizon_length=5 \
+# --agent=agents/acbcflowactor.py \
+# --agent.encoder=combined_encoder_small \

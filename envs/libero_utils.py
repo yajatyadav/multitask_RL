@@ -104,7 +104,9 @@ def _get_normalization_path(env_name):
     print(f"TODO(YY): Normalization path not implemented for {env_name}")
     # raise NotImplementedError("TODO(YY): Normalization path not implemented")
 
-def extract_all_libero_env_names(env_name):
+def extract_all_libero_env_names(env_name, task_name):
+    all_tasks = task_name.split('|')
+    print(f"all_tasks: {all_tasks}")
     suites = []
     scenes = []
     if env_name.startswith("all_libero"):
@@ -129,15 +131,21 @@ def extract_all_libero_env_names(env_name):
         num_tasks = task_suite.n_tasks
         for task_id in range(num_tasks):
             task = task_suite.get_task(task_id)
+            language = task.language.replace(" ", "_").lower()
             if scenes[i].lower() == '*':
                 all_names[suite].append(f"{suite}-{task.name}")
+            
             elif task.name.lower().startswith(scenes[i].lower()):
-                all_names[suite].append(f"{suite}-{task.name}")
+                if task_name != '':
+                    if language in all_tasks:
+                        all_names[suite].append(f"{suite}-{task.name}")
+                else:
+                    all_names[suite].append(f"{suite}-{task.name}")
         all_names[suite] = sorted(all_names[suite])
     return all_names
 
 
-def make_env(env_name, num_parallel_envs, use_hardcoded_eval_envs=False, render_resolution=128, keys_to_load=[], seed=0):
+def make_env(env_name, task_name,num_parallel_envs, use_hardcoded_eval_envs=False, render_resolution=128, keys_to_load=[], seed=0):
     """
     NOTE: is now returning a LIST of environments, thus the main script needs to sequentiall loop and call evaluate() on each..
     """
@@ -165,7 +173,7 @@ def make_env(env_name, num_parallel_envs, use_hardcoded_eval_envs=False, render_
     eval_need_camera_obs = any('image' in k for k in keys_to_load)
     print("evaluation environment will return keys: ", keys_to_load)
 
-    all_env_names = extract_all_libero_env_names(env_name)
+    all_env_names = extract_all_libero_env_names(env_name, task_name)
     print(f"All possible envs, sorted alphabetically: there are {len(all_env_names)} total envs")
     
     HARDCODED_EVAL_ENVS = {
@@ -243,7 +251,7 @@ def stack_dict_list(dict_list):
     keys = dict_list[0].keys()
     return {k: np.concatenate([d[k] for d in dict_list], axis=0) for k in keys}
 
-def get_dataset(env, env_name, task_name, augmentation_type, keys_to_load):
+def get_dataset(env, env_name, task_name, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=None, augmentation_dict=None):
     # data holders
     observations = []
     actions = []
@@ -251,12 +259,16 @@ def get_dataset(env, env_name, task_name, augmentation_type, keys_to_load):
     terminals = []
     rewards = []
     masks = []
+    print(f"🤪🤪🤪 augmentation_reward: {augmentation_reward}")
 
     def process_task(rm_dataset, zero_out_rewards, target_task_name):
         # print(f"processing dataset for task {this_task_name}")
         demos = list(rm_dataset["data"].keys())
         inds = np.argsort([int(elem[5:]) for elem in demos])
         demos = [demos[i] for i in inds] # sort demos!
+        if demo_nums_to_use_per_task is not None:
+            print(f"😎😎😎 ONLY using {demo_nums_to_use_per_task} demos for target_task: {target_task_name}")
+            demos = [demos[i] for i in demo_nums_to_use_per_task]
 
         task_embedding = OneHotEmbedding_Libero.encode(target_task_name)
 
@@ -309,7 +321,7 @@ def get_dataset(env, env_name, task_name, augmentation_type, keys_to_load):
             r = np.array(rm_dataset["data/{}/rewards".format(ep)], dtype=np.float32)
             # the raw data holds 0/1 rewards. if this is a positive task, we will keep the rewards as is, otherwise we will set ALL to 0
             if zero_out_rewards:
-                r = np.full_like(r, 0.0)
+                r = np.full_like(r, augmentation_reward)
 
             # append to data holders
             observations.append(obs)
@@ -320,10 +332,11 @@ def get_dataset(env, env_name, task_name, augmentation_type, keys_to_load):
             next_observations.append(next_obs)
         return this_task_num_timesteps
 
-    
+    # TODO(YY): still some issues w/ kitchen_scene1 and kitchen_scene10 in some regex matching locations...
+    # such as distinct_scenes containing stuff it shouldn't here...
     # crawl through env_name directory, and add each task's demos
     libero_dataset_dir = os.path.join(os.path.dirname(os.getcwd()), 'datasets/raw_libero')
-    all_libero_env_names = extract_all_libero_env_names(env_name)
+    all_libero_env_names = extract_all_libero_env_names(env_name, task_name)
     print(f"🤪🤪🤪 all_libero_env_names: {all_libero_env_names}")
     distinct_scenes = {}
     for suite in all_libero_env_names.keys():
@@ -342,8 +355,12 @@ def get_dataset(env, env_name, task_name, augmentation_type, keys_to_load):
     # using switch case + functions here to handle the different augmentation types
     match augmentation_type:
         case 'none':
-            num_timesteps = none_augmentation(distinct_scenes, process_task, libero_dataset_dir)
+            num_timesteps = none_augmentation(distinct_scenes, task_name, process_task, libero_dataset_dir)
+        case 'custom_task':
+            num_timesteps = custom_task_augmentation(distinct_scenes, task_name, process_task, libero_dataset_dir, augmentation_dict)
         case 'task':
+            # assert task_name != '', "Task name must be provided for augmentation type 'task'"
+            # num_timesteps = task_augmentation(distinct_scenes, process_task, libero_dataset_dir, task_name)
             raise NotImplementedError("Augmentation type 'task' is not supported yet.")
         case 'first':
             raise NotImplementedError("Augmentation type 'first' is not supported yet.")
@@ -405,7 +422,39 @@ def get_dataset(env, env_name, task_name, augmentation_type, keys_to_load):
     )
 
 
-def none_augmentation(distinct_scenes, process_task_fn, libero_dataset_dir):
+# def task_augmentation(distinct_scenes, process_task_fn, libero_dataset_dir, target_task_name):
+#     j = 0
+#     num_timesteps = 0
+#     for suite in distinct_scenes.keys():
+#         scenes = distinct_scenes[suite]
+#         for scene in scenes:
+#             suite = suite.upper()
+#             scene = scene.upper()
+#             pattern = os.path.join(libero_dataset_dir, suite, f'{scene}_*.hdf5')
+#             for filepath in sorted(glob.glob(pattern)):
+#                 task_name = os.path.basename(filepath).split(".")[0][:-5]
+#                 if "SCENE" in task_name:
+#                     task_name = extract_libero_task_name_only(task_name)
+#                 if task_name == target_task_name:
+#                     continue
+                
+#                 _check_dataset_exists(f"{suite}-{task_name}")
+#                 zero_out_rewards = False
+#                 rm_dataset = h5py.File(filepath, "r")
+#                 this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, target_task_name)
+#                 num_timesteps += this_task_num_timesteps
+#                 print(f"🥳🥳🥳 {j=} Dataset {task_name} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {target_task_name=}")
+#     print(f"the total size of the dataset is {num_timesteps}")
+#     return num_timesteps
+
+
+def none_augmentation(distinct_scenes, task_name, process_task_fn, libero_dataset_dir):
+    all_tasks = task_name.split('|')
+    # if task_name != '':
+    #     assert len(distinct_scenes) == 1, f'distinct_scenes has {len(distinct_scenes)} suites, but expected {len(all_tasks)}'
+    #     k = list(distinct_scenes.keys())[0]
+    #     assert len(distinct_scenes[k]) == 1, f'key {k} has {len(distinct_scenes[k])} scenes, but expected 1'
+    
     j = 0
     num_timesteps = 0
     for suite in distinct_scenes.keys():
@@ -414,11 +463,16 @@ def none_augmentation(distinct_scenes, process_task_fn, libero_dataset_dir):
             suite = suite.upper()
             scene = scene.upper()
             pattern = os.path.join(libero_dataset_dir, suite, f'{scene}_*.hdf5')
+            
             for filepath in sorted(glob.glob(pattern)):
                 target_task_name = os.path.basename(filepath).split(".")[0][:-5]
                 _check_dataset_exists(f"{suite}-{target_task_name}")
                 if "SCENE" in target_task_name:
                     target_task_name = extract_libero_task_name_only(target_task_name)
+
+                if task_name != '' and target_task_name not in all_tasks:
+                    continue
+                
                 print(f"😈😈😈 {target_task_name=}")
                 zero_out_rewards = False
                 rm_dataset = h5py.File(filepath, "r")
@@ -426,6 +480,48 @@ def none_augmentation(distinct_scenes, process_task_fn, libero_dataset_dir):
                 num_timesteps += this_task_num_timesteps
                 print(f"🥳🥳🥳 {j=} Dataset {target_task_name} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {target_task_name=}")
                 j += 1
+    print(f"the total size of the dataset is {num_timesteps}")
+    return num_timesteps
+
+def custom_task_augmentation(distinct_scenes, task_name, process_task_fn, libero_dataset_dir, augmentation_dict):
+    all_tasks = task_name.split('|')
+    assert len(augmentation_dict) == len(all_tasks), f'augmentation_dict has {len(augmentation_dict)} tasks, but expected {len(all_tasks)}'
+    
+    j = 0
+    num_timesteps = 0
+    for suite in distinct_scenes.keys():
+        scenes = distinct_scenes[suite]
+        for scene in scenes:
+            suite = suite.upper()
+            scene = scene.upper()
+
+            for task, augment_tasks in augmentation_dict.items():
+                
+                # first add task as a positive example
+                pattern = os.path.join(libero_dataset_dir, suite,f'{scene}_{task}*.hdf5')
+                print(f"😈😈😈 {pattern=}", 'there are', len(sorted(glob.glob(pattern))), 'files for this suite + scene + task')
+                positive_filepath = sorted(glob.glob(pattern))[0]
+                _check_dataset_exists(f"{suite.upper()}-{scene}_{task}")
+                zero_out_rewards = False
+                rm_dataset = h5py.File(positive_filepath, "r")
+                this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, task)
+                num_timesteps += this_task_num_timesteps
+                print(f"🥳🥳🥳 {j=} Dataset {task} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {task=}")
+                j += 1
+
+                # now, add each task in augment_tasks as a negative example
+                for augment_task in augment_tasks:
+                    pattern = os.path.join(libero_dataset_dir, suite, f'{scene}_{augment_task}*.hdf5')
+                    print(f"😈😈😈 {pattern=}", 'there are', len(sorted(glob.glob(pattern))), 'files for this suite + scene + task')
+                    negative_filepath = sorted(glob.glob(pattern))[0]
+                    _check_dataset_exists(f"{suite.upper()}-{scene}_{augment_task}")
+                    zero_out_rewards = True
+                    rm_dataset = h5py.File(negative_filepath, "r")
+                    this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, task)
+                    num_timesteps += this_task_num_timesteps
+                    print(f"🥳🥳🥳 {j=} Dataset {augment_task} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {task=}")
+                    j += 1
+    
     print(f"the total size of the dataset is {num_timesteps}")
     return num_timesteps
                 

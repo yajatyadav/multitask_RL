@@ -16,7 +16,7 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=libero90_livingroomscene1_none_augmentation_IMAGE_ \
+--exp_name_prefix=libero90_livingroomscene1_none_augmentation_unsparse_reward_IMAGE_ \
 --run_group=instruction_following_Q \
 --env_name=libero_90-living_room_scene1 \
 --task_name='' \

@@ -90,8 +90,12 @@ class Dataset(FrozenDict):
         return batch
 
     
-    def sample_sequence(self, batch_size, sequence_length, discount):
-        idxs = np.random.randint(self.size - sequence_length + 1, size=batch_size)
+    def sample_sequence(self, batch_size, sequence_length, discount, idxs_to_use=None):
+        # TODO(YY): hack so we can use sample_sequence to controllably sample from start/middle/end of trajectories
+        if idxs_to_use is None:
+            idxs = np.random.randint(self.size - sequence_length + 1, size=batch_size)
+        else:
+            idxs = idxs_to_use
         
         data = jax.tree_util.tree_map(lambda v: v[idxs], self._dict)
 

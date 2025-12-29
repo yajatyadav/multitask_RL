@@ -16,16 +16,16 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=libero90_livingroomscene1_exhaustive_augmentation_IMAGE_ \
+--exp_name_prefix=libero90_livingroomscene1_exhaustive_augmentation_unsparse_reward_STATE_ \
 --run_group=instruction_following_Q \
 --env_name=libero_90-living_room_scene1 \
 --task_name='' \
 --augmentation_type=exhaustive \
 \
---use_pixels=True \
---use_proprio=True \
---use_language=True \
---use_mj_sim_state=False \
+--use_pixels=False \
+--use_proprio=False \
+--use_language=False \
+--use_mj_sim_state=True \
 \
 --offline_steps=1000000 \
 --eval_interval=50000 \
@@ -33,5 +33,5 @@ uv run main.py \
 \
 --horizon_length=5 \
 --agent=agents/acifql.py \
---agent.encoder=combined_encoder_small \
+--agent.encoder=state_space \
 --agent.expectile=0.9 \

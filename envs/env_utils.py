@@ -90,7 +90,7 @@ class FrameStackWrapper(gymnasium.Wrapper):
 # augmentation types: 'first': uses the FIRST task per scene, using the other tasks in the scene as negative examples
 # 'task': uses task_name as positive, and other tasks with same scene as task_name as negative examples
 # 'exhaustive': in all scenes possible by env_name, every task will be augmented using all other tasks in the same scene as negative examples
-def make_env_and_datasets(env_name, task_name, augmentation_type, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5, use_hardcoded_eval_envs=False):
+def make_env_and_datasets(env_name, task_name, augmentation_type, augmentation_reward, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5, use_hardcoded_eval_envs=False, demo_nums_to_use_per_task=None, augmentation_dict=None):
     """Make offline RL environment and datasets.
 
     Args:
@@ -154,6 +154,7 @@ def make_env_and_datasets(env_name, task_name, augmentation_type, num_parallel_e
         # ) # for now, online env will ALSO generate several parallel libero envs!
         eval_env, names_to_return = libero_utils.make_env(
             eval_env_name, 
+            task_name,
             num_parallel_envs=num_parallel_envs, 
             use_hardcoded_eval_envs=use_hardcoded_eval_envs, 
             keys_to_load=keys_to_load, 
@@ -162,7 +163,7 @@ def make_env_and_datasets(env_name, task_name, augmentation_type, num_parallel_e
         ## YY: removing this wrapper as eval wants raw eval object
         # env = EpisodeMonitor(env)
         # eval_env = EpisodeMonitor(eval_env)
-        dataset = libero_utils.get_dataset(env, env_name, task_name, augmentation_type, keys_to_load) # keys_to_load to control what gets loaded in!
+        dataset = libero_utils.get_dataset(env, env_name, task_name, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=demo_nums_to_use_per_task, augmentation_dict=augmentation_dict) # keys_to_load to control what gets loaded in!
         train_dataset, val_dataset = dataset, None
     else:
         raise ValueError(f'Unsupported environment: {env_name}')

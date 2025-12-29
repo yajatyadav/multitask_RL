@@ -20,6 +20,7 @@ from utils.datasets import Dataset, ReplayBuffer
 from evaluation_libero import evaluate as evaluate_libero
 from agents import agents
 import numpy as np
+import json
 
 if 'CUDA_VISIBLE_DEVICES' in os.environ:
     os.environ['EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
@@ -33,8 +34,11 @@ flags.DEFINE_integer('seed', 0, 'Random seed.')
 flags.DEFINE_string('env_name', 'libero_90-kitchen_scene2', 'Environment (dataset) name.')
 flags.DEFINE_string('task_name', '', 'Task name.')
 flags.DEFINE_bool('use_hardcoded_eval_envs', False, 'Whether to use hardcoded eval environments.')
-flags.DEFINE_string('augmentation_type', 'exhaustive', 'Augmentation type: none (no aug), task (for task only), first (for first task in scene), exhaustive (for all tasks in all scenes from env).')
+flags.DEFINE_string('augmentation_type', 'none', 'Augmentation type: none (no aug), task (for task only), first (for first task in scene), exhaustive (for all tasks in all scenes from env).')
+flags.DEFINE_float('augmentation_reward', 0.0, 'The reward for relabeled trajectories. This is the value before the -1 shift is applied!')
+flags.DEFINE_string('augmentation_dict', '{}', 'Augmentation dictionary: {task_name: [augment_tasks]}.')
 flags.DEFINE_string('save_dir', 'exp/', 'Save directory.')
+flags.DEFINE_integer('num_demos_to_use_per_task', -1, 'Number of demos to use per task.')
 
 flags.DEFINE_integer('offline_steps', 1000000, 'Number of online steps.')
 flags.DEFINE_integer('online_steps', 0, 'Number of online steps.')
@@ -56,7 +60,7 @@ flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
 flags.DEFINE_float('discount', 0.99, 'discount factor')
 
 flags.DEFINE_integer('eval_episodes', 50, 'Number of evaluation episodes.')
-flags.DEFINE_integer('num_parallel_envs', 10, 'Number of parallel environments for evaluation.')
+flags.DEFINE_integer('num_parallel_envs', 5, 'Number of parallel environments for evaluation.')
 flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
@@ -67,7 +71,7 @@ flags.DEFINE_integer('dataset_replace_interval', 1000, 'Dataset replace interval
 flags.DEFINE_string('ogbench_dataset_dir', None, 'OGBench dataset directory')
 
 flags.DEFINE_integer('horizon_length', 5, 'action chunking length.')
-flags.DEFINE_bool('sparse', True, "make the task sparse reward: prevents reward values like -2 (will be set to -1)")
+flags.DEFINE_bool('sparse', False, "make the task sparse reward: prevents reward values like -2 (will be set to -1)")
 
 flags.DEFINE_bool('save_all_online_states', False, "save all trajectories to npy")
 
@@ -94,6 +98,14 @@ def main(_):
         json.dump(flag_dict, f)
 
     config = FLAGS.agent
+    augmentation_dict = json.loads(FLAGS.augmentation_dict)
+    print(f"main.py:😈😈😈 Augmentation dictionary: {augmentation_dict}")
+
+    if FLAGS.num_demos_to_use_per_task != -1:
+        print(f"main.py:😈😈😎 ONLY using {FLAGS.num_demos_to_use_per_task} demos for each task")
+        demo_nums_to_use_per_task = list(range(FLAGS.num_demos_to_use_per_task))
+    else:
+        demo_nums_to_use_per_task = None
     
     # data loading
     if FLAGS.ogbench_dataset_dir is not None:
@@ -124,9 +136,12 @@ def main(_):
             FLAGS.env_name,
             FLAGS.task_name,
             FLAGS.augmentation_type,
+            FLAGS.augmentation_reward,
             num_parallel_envs=FLAGS.num_parallel_envs,
             keys_to_load=keys_to_load,
             use_hardcoded_eval_envs=FLAGS.use_hardcoded_eval_envs,
+            demo_nums_to_use_per_task=demo_nums_to_use_per_task,
+            augmentation_dict=augmentation_dict,
         )
     
     print(f"main.py:Made env and datasets.Train dataset size: {train_dataset.size}", flush=True)
@@ -158,13 +173,14 @@ def main(_):
             )
         
         if is_robomimic_env(FLAGS.env_name) or is_libero_env(FLAGS.env_name): # use -1/0 rewarding: the sparse reward is set to -1 if the reward is not 0
-            print(f"main.py:Translating to -1/0 rewards")
+            print(f"main.py:Translating dataset rewards by -1")
             penalty_rewards = ds["rewards"] - 1.0
             ds_dict = {k: v for k, v in ds.items()}
             ds_dict["rewards"] = penalty_rewards
             ds = Dataset.create(**ds_dict)
         
         if FLAGS.sparse:
+            print(f"main.py: Sparsifiying rewards by setting all non-zero rewards to -1")
             # Create a new dataset with modified rewards instead of trying to modify the frozen one
             sparse_rewards = (ds["rewards"] != 0.0) * -1.0
             ds_dict = {k: v for k, v in ds.items()}
@@ -232,7 +248,7 @@ def main(_):
         batch = train_dataset.sample_sequence(config['batch_size'], sequence_length=FLAGS.horizon_length, discount=discount)
         agent, offline_info = agent.update(batch)
 
-        if i % FLAGS.log_interval == 0:
+        if i == 1 or i % FLAGS.log_interval == 0:
             logger.log(offline_info, "offline_agent", step=log_step)
 
         # if i in times_to_log_inputs:
@@ -243,9 +259,8 @@ def main(_):
         if FLAGS.save_interval > 0 and i % FLAGS.save_interval == 0:
             save_agent(agent, FLAGS.save_dir, log_step)
 
-        # eval: do one at very start, very end, and in b/w using eval_interval
-        if i == FLAGS.offline_steps - 1 or i == 5 or \
-            (FLAGS.eval_interval != 0 and i % FLAGS.eval_interval == 0):
+        # eval: do one at very start, very end, and in b/w using eval_interval. but if eval_interval is -1, we skip evaling
+        if (FLAGS.eval_interval != -1) and (i == FLAGS.offline_steps or i == 5 or i % FLAGS.eval_interval == 0):
             # during eval, the action chunk is executed fully
 
             all_eval_info = []

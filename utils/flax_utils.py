@@ -213,3 +213,53 @@ def restore_agent(agent, restore_path, restore_epoch):
     print(f'Restored from {restore_path}')
 
     return agent
+
+
+def restore_agent_actor_critic_separately(agent, actor_file_path, critic_file_path):
+    """Restore agent using actor params from one file and critic params from another.
+    Ideal when want to use 2 diff checkpoint from same training run to load actor and critic params separately.
+    
+    Args:
+        agent: Agent to restore into.
+        actor_file_path: Path to the checkpoint containing actor parameters.
+        critic_file_path: Path to the checkpoint containing critic parameters.
+    
+    Returns:
+        Restored agent with actor params from actor_file_path and critic params from critic_file_path.
+    """
+    assert os.path.exists(actor_file_path), f'Actor file {actor_file_path} does not exist'
+    assert os.path.exists(critic_file_path), f'Critic file {critic_file_path} does not exist'
+    
+    with open(actor_file_path, 'rb') as f:
+        actor_load_dict = pickle.load(f)
+    
+    with open(critic_file_path, 'rb') as f:
+        critic_load_dict = pickle.load(f)
+    
+    # Get the current agent state dict as a base
+    agent_state_dict = flax.serialization.to_state_dict(agent)
+    
+    # Extract network params from both checkpoints
+    actor_params = actor_load_dict['agent']['network']['params']
+    critic_params = critic_load_dict['agent']['network']['params']
+    
+    # Merge: use actor's actor params and critic's critic params
+    agent_params = agent_state_dict['network']['params']
+    
+    # Copy actor-related params from actor checkpoint
+    for key in agent_params:
+        print(f'key: {key}')
+        if 'actor' in key:
+            print(f"for key {key}, copying actor params from {actor_file_path}")
+            agent_params[key] = actor_params[key]
+        elif 'critic' in key:
+            print(f"for key {key}, copying critic params from {critic_file_path}")
+            agent_params[key] = critic_params[key]
+        elif 'value' in key:
+            print(f"for key {key}, copying value params from {critic_file_path}")
+            agent_params[key] = critic_params[key]
+    
+    agent = flax.serialization.from_state_dict(agent, agent_state_dict)    
+    print(f'Restored actor from {actor_file_path}')
+    print(f'Restored critic from {critic_file_path}')
+    return agent
