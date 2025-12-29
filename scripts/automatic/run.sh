@@ -9,4 +9,4 @@ while (( "$#" )); do
   a="$a '$1'"
   shift
 done
-srun -K0 bash -c "scripts/automatic/run_supp.sh $a"
+srun -K0 --export=ALL bash -c "scripts/automatic/run_supp.sh $a"

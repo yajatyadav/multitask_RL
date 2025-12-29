@@ -1,26 +1,26 @@
+"""
+Generate sbatch job script for evaluating best-of-N with different n values.
+Each n value gets its own sbatch job.
+"""
 import os
+import argparse
 from typing import List
-import wandb
 import time as time_module
-
-"""
-Modified generate_sbatch_script function with postprocessing support.
-Replace the function in your generate_eval_sbatch.py with this version.
-"""
-
+import wandb    
 def generate_sbatch_script(
     n_vals: List[int],
     actor_restore_path: str,
     critic_restore_path: str,
-    env_name: str,
-    task_name: str,
     wandb_name: str,
     wandb_run_id: str = None,
     output_file: str = None,
     output_file_dir: str = 'scripts/shell_scripts',
+    env_name: str = 'libero_90-living_room_scene1',
+    task_name: str = 'pick_up_the_alphabet_soup_and_put_it_in_the_basket|pick_up_the_ketchup_and_put_it_in_the_basket',
     wandb_entity: str = 'yajatyadav',
     wandb_project: str = 'multitask_RL',
     wandb_group: str = 'eval_libero_best_of_N',
+   
     output_dir: str = './eval_results',
     # SBATCH parameters
     account: str = 'co_rail',
@@ -35,11 +35,9 @@ def generate_sbatch_script(
     mem: str = '60G',
     requeue: bool = True,
     script_runner: str = 'scripts/automatic/run.sh',
-    postprocess_script: str = 'evaluation/brc_eval_scripts/postprocess_best_of_n_eval.py',
 ):
     """
-    Generate a shell script with sbatch commands for each n value,
-    plus a final postprocessing job that aggregates results and logs to wandb.
+    Generate a shell script with sbatch commands for each n value.
     
     Args:
         n_vals: List of n values to evaluate
@@ -64,13 +62,11 @@ def generate_sbatch_script(
         mem: Memory limit
         requeue: Whether to requeue failed jobs
         script_runner: Path to the script runner
-        postprocess_script: Path to the postprocessing script
         output_file: Output shell script filename
     """
     
     # Environment variables for WANDB robustness
     wandb_env_vars = [
-        'WANDB_MODE=offline',  # Run in offline mode
         'WANDB_SERVICE_WAIT=86400',
         'WANDB_NETWORK_TIMEOUT=600',
         'WANDB_FILE_TRANSFER_TIMEOUT=1200',
@@ -94,7 +90,7 @@ def generate_sbatch_script(
     
     all_env_vars = ' '.join(wandb_env_vars + system_env_vars)
     
-    # SBATCH options for evaluation jobs
+    # SBATCH options
     sbatch_opts = [
         f'-A {account}',
         f'-p {partition}',
@@ -115,13 +111,10 @@ def generate_sbatch_script(
     
     # Generate the shell script
     lines = ['#!/usr/bin/env bash', '']
-    lines.append('# Best-of-N Evaluation Jobs')
-    lines.append('# All jobs run in WANDB_MODE=offline')
-    lines.append('')
 
     # initialize wandb run and get run id
     if wandb_run_id is None:
-        print(f"😮😮😮 a wandb run id was not provided, so we will first initialize a wandb run before starting evaluation 😮😮😮")
+        print(f"😮😮😮 a wandb run id was not provided, so we will first initialize a wandb run before calling the sbatch script for evaluation 😮😮😮")
         run = wandb.init(
             entity=wandb_entity,
             project=wandb_project,
@@ -129,16 +122,7 @@ def generate_sbatch_script(
             name=wandb_name,
         )
         wandb_run_id = run.id
-        wandb.finish()  # Close it immediately, we just needed the ID
-
-    timestamp = time_module.strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join(output_dir, f'run_{wandb_run_id}_{timestamp}')
-    os.makedirs(output_dir, exist_ok=True)
     
-    # Track all job IDs for dependency
-    job_ids = []
-    
-    # Generate evaluation jobs
     for i, n in enumerate(n_vals):
         # Build the python command
         python_cmd = (
@@ -150,6 +134,8 @@ def generate_sbatch_script(
             f'--task_name "{task_name}" '
             f'--wandb_entity {wandb_entity} '
             f'--wandb_project {wandb_project} '
+            # f'--wandb_group {wandb_group} '
+            # f'--wandb_name {wandb_name} '
             f'--wandb_run_id {wandb_run_id} '
             f'--output_dir {output_dir}'
         )
@@ -163,56 +149,6 @@ def generate_sbatch_script(
         )
         
         lines.append(sbatch_cmd)
-        job_ids.append(f'$jobid{i}')
-    
-    lines.append('')
-    lines.append('# Postprocessing Job')
-    lines.append('# Waits for all evaluation jobs to complete, then aggregates results')
-    lines.append('')
-    
-    # Build dependency string
-    dependency_str = ':'.join(job_ids)
-    
-    # Build postprocessing command
-    postprocess_cmd = (
-        f'uv run {postprocess_script} '
-        f'--output_dir {output_dir} '
-        f'--wandb_entity {wandb_entity} '
-        f'--wandb_project {wandb_project} '
-        f'--wandb_run_id {wandb_run_id} '
-        f'--env_name "{env_name}"'
-    )
-    
-    # SBATCH options for postprocessing (CPU-only job)
-    postprocess_sbatch_opts = [
-        f'-A {account}',
-        f'-p {partition}',
-        f'--gres=gpu:{gpu_type}:{num_gpus}',
-        f'-N {num_nodes}',
-        f'-n {num_tasks}',
-        f'-c {cpus_per_task}',
-        f'--qos={qos}',
-        f'-t {time}',
-        f'--mem={mem}',
-        '--parsable'
-    ]
-    
-    postprocess_sbatch_opts_str = ' '.join(postprocess_sbatch_opts)
-    
-    # Add postprocessing job with dependency on all eval jobs
-    postprocess_job = (
-        f'postprocess_jobid=$(sbatch {postprocess_sbatch_opts_str} '
-        f'--dependency=afterok:{dependency_str} '
-        f'--comment="postprocess_best_of_N" '
-        f'{script_runner} \'{postprocess_cmd}\') '
-        f'&& echo $postprocess_jobid'
-    )
-    
-    lines.append(postprocess_job)
-    lines.append('')
-    lines.append('echo "All jobs submitted!"')
-    lines.append(f'echo "Evaluation jobs: {len(n_vals)}"')
-    lines.append('echo "Postprocessing will run after all evaluations complete"')
     
     # Write the script
     script_content = '\n'.join(lines) + '\n'
@@ -228,59 +164,96 @@ def generate_sbatch_script(
     os.chmod(output_file, 0o755)
     
     print(f"Generated sbatch script: {output_file}")
-    print(f"Evaluation jobs: {len(n_vals)}")
+    print(f"Total jobs: {len(n_vals)}")
     print(f"N values: {n_vals}")
-    print(f"Wandb run ID: {wandb_run_id}")
     print(f"\nTo submit all jobs, run:")
     print(f"  bash {output_file}")
-    print(f"\nNote: Evaluation jobs run in offline mode.")
-    print(f"      Postprocessing job will aggregate and log to wandb online.")
+    
     
     return output_file
 
 
-if __name__ == '__main__':
-    import argparse
+def main():
+    """Example usage with configurable parameters."""
     
+    # Configuration - EDIT THESE VALUES
+    root_dir = '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/exp/multitask_RL'
+    
+    # Actor paths
+    onetask_actor_ckpt = 'bcflowactor_only/libero_90-living_room_scene1/bcflowactor_livingroomscene1__alphabet_soup_25_demos_IMAGE_sd00020251227_144306/params_140000.pkl'
+    twotask_actor_ckpt = 'bcflowactor_only/libero_90-living_room_scene1/bcflowactor_livingroomscene1__alphabet_soup_ketchup_25_demos_IMAGE_sd00020251227_144347/params_140000.pkl'
+    
+    # Critic paths
+    onetask_critic_no_aug_ckpt = 'instruction_following_Q/libero_90-living_room_scene1/libero90_livingroomscene1_singletask_none_augmentation_IMAGE_sd00020251226_214011/params_125000.pkl'
+    two_task_critic_no_aug_ckpt = 'instruction_following_Q/libero_90-living_room_scene1/libero90_livingroomscene1_twotask_none_augmentation_IMAGE_sd00020251226_214200/params_125000.pkl'
+    
+    # TODO: EDIT THESE FOR YOUR EXPERIMENT
+    n_vals = [1, 2, 4, 8, 16, 32, 64, 128]
+    actor_ckpt = twotask_actor_ckpt
+    critic_ckpt = two_task_critic_no_aug_ckpt
+    
+    actor_restore_path = os.path.join(root_dir, actor_ckpt)
+    critic_restore_path = os.path.join(root_dir, critic_ckpt)
+    
+    suffix = 'twotask_no_aug_actor_25_demos_140k_step_critic_125k_step'
+    wandb_name = f'eval_libero90_livingroomscene1_{suffix}'
+    
+    env_name = 'libero_90-living_room_scene1'
+    task_name = 'pick_up_the_alphabet_soup_and_put_it_in_the_basket|pick_up_the_ketchup_and_put_it_in_the_basket'
+    
+    # Generate the script
+    generate_sbatch_script(
+        n_vals=n_vals,
+        actor_restore_path=actor_restore_path,
+        critic_restore_path=critic_restore_path,
+        env_name=env_name,
+        task_name=task_name,
+        wandb_name=wandb_name,
+        output_file='eval_best_of_n_jobs.sh'
+    )
+
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Generate sbatch script for best-of-N evaluation'
     )
     
+    # Option 1: Use command line arguments
     parser.add_argument('--n_vals', type=int, nargs='+', required=True,
                        help='List of n values to evaluate (e.g., 1 2 4 8 16)')
-    parser.add_argument('--actor_restore_path', type=str, required=True,
+    parser.add_argument('--actor_restore_path', type=str,
+    required=True,
                        help='Path to actor checkpoint')
-    parser.add_argument('--critic_restore_path', type=str, required=True,
+    parser.add_argument('--critic_restore_path', type=str,
+    required=True,
                        help='Path to critic checkpoint')
-    parser.add_argument('--env_name', type=str, required=True,  
+    parser.add_argument('--env_name', type=str,
+    required=True,  
                        help='Environment name')
-    parser.add_argument('--task_name', type=str, required=True,
+    parser.add_argument('--task_name', type=str,
+    required=True,
                        help='Task name(s)')
-    parser.add_argument('--wandb_name', type=str, required=True,
+    parser.add_argument('--wandb_name', type=str,
+    required=True,
                        help='Base wandb run name')
+    parser.add_argument('--output_file', type=str,
+    required=False,
+                       help='Output shell script filename')
     parser.add_argument('--wandb_run_id', type=str, default=None,
-                       help='Wandb run id (optional)')
-    parser.add_argument('--wandb_entity', type=str, default='yajatyadav',
-                       help='Wandb entity')
-    parser.add_argument('--wandb_project', type=str, default='multitask_RL',
-                       help='Wandb project')
-    parser.add_argument('--output_dir', type=str, default='./eval_results',
-                       help='Base output directory')
+                       help='Wandb run id, if provided evals will get logged under this run id')
     
     args = parser.parse_args()
     
-    # Call the function with parsed arguments
-    output_file = generate_sbatch_script(
-        n_vals=args.n_vals,
-        actor_restore_path=args.actor_restore_path,
-        critic_restore_path=args.critic_restore_path,
-        env_name=args.env_name,
-        task_name=args.task_name,
-        wandb_name=args.wandb_name,
-        wandb_run_id=args.wandb_run_id,
-        wandb_entity=args.wandb_entity,
-        wandb_project=args.wandb_project,
-        output_dir=args.output_dir,
-    )
-    
-    print(f"\n✅ Script generation complete: {output_file}")
+    # If no command line arguments provided, use the hardcoded configuration
+    if args.n_vals is None:
+        raise ValueError("n_vals must be provided")
+    else:
+        generate_sbatch_script(
+            n_vals=args.n_vals,
+            actor_restore_path=args.actor_restore_path,
+            critic_restore_path=args.critic_restore_path,
+            env_name=args.env_name,
+            task_name=args.task_name,
+            wandb_name=args.wandb_name,
+            wandb_run_id=args.wandb_run_id,
+        )
