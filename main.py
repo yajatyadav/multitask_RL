@@ -23,6 +23,7 @@ from evaluation_libero import evaluate as evaluate_libero
 from agents import agents
 import numpy as np
 import json
+import subprocess
 
 if 'CUDA_VISIBLE_DEVICES' in os.environ:
     os.environ['EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
@@ -65,7 +66,8 @@ flags.DEFINE_float('discount', 0.99, 'discount factor')
 flags.DEFINE_list('eval_hosts', ['savio', 'brc', 'cluster'], 
                   'List of hostname keywords that trigger automatic evaluation on BRC')
 flags.DEFINE_string('eval_actor_restore_path', None, 'Path to actor checkpoint for evaluation.')
-flags.DEFINE_list('eval_best_of_N_vals', [1, 2, 4, 8, 16, 32, 64, 128], nargs='+', help='List of n values to evaluate for best-of-N.')
+flags.DEFINE_multi_integer('eval_best_of_N_vals', [1, 2, 4, 8, 16, 32, 64, 128],
+                          'List of n values to evaluate for best-of-N.')
 flags.DEFINE_boolean('eval_best_of_N_brc', True, 'Whether to evaluate best-of-N on BRC.')
 flags.DEFINE_integer('eval_episodes', 50, 'Number of evaluation episodes.')
 flags.DEFINE_integer('num_parallel_envs', 5, 'Number of parallel environments for evaluation.')
@@ -277,7 +279,7 @@ def main(_):
                 actor_restore_path = FLAGS.eval_actor_restore_path
                 critic_restore_path = os.path.join(FLAGS.save_dir,f"params_{log_step}.pkl")
                 wandb_run_id = run.id
-                wandb_name = 'EVAL_' + exp_name
+                wandb_name = 'TRAIN_EVAL_' + exp_name
                 output_file = generate_sbatch_script(
                     n_vals=n_vals,
                     actor_restore_path=actor_restore_path,
@@ -286,9 +288,18 @@ def main(_):
                     task_name=FLAGS.task_name,
                     wandb_name=wandb_name,
                     wandb_run_id=wandb_run_id,
+                    output_file_dir='scripts/shell_scripts/train_eval/'
                 )
                 os.chmod(output_file, 0o755)
-                os.system(f'bash {output_file}')
+                result = subprocess.run([output_file], 
+                       capture_output=True, 
+                       text=True,
+                       env=os.environ.copy(),
+                       cwd=os.getcwd()
+                       )
+                print(f"Return code: {result.returncode}")
+                print(f"stdout: {result.stdout}")
+                print(f"stderr: {result.stderr}")
 
 
                 

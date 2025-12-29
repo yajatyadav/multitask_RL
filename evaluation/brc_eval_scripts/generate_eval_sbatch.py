@@ -110,7 +110,7 @@ def generate_sbatch_script(
     sbatch_opts_str = ' '.join(sbatch_opts)
     
     # Generate the shell script
-    lines = ['#!/bin/bash', '']
+    lines = ['#!/usr/bin/env bash', '']
 
     # initialize wandb run and get run id
     if wandb_run_id is None:

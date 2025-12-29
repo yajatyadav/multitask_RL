@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #SBATCH -A co_rail
 #SBATCH -p savio4_gpu
 #SBATCH --gres=gpu:A5000:1
@@ -17,7 +17,7 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 uv run main.py \
 --exp_name_prefix=libero90_livingroomscene1_twotask_augment_each_other_-10_reward_IMAGE_ \
---run_group=instruction_following_Q \
+--run_group=TEST_ASYNC_EVAL_instruction_following_Q \
 --env_name=libero_90-living_room_scene1 \
 --task_name='pick_up_the_alphabet_soup_and_put_it_in_the_basket|pick_up_the_ketchup_and_put_it_in_the_basket' \
 --augmentation_type=custom_task \
@@ -29,10 +29,10 @@ uv run main.py \
 --use_language=True \
 --use_mj_sim_state=False \
 \
---offline_steps=10000 \
+--offline_steps=150 \
 --eval_interval=-1 \
 --eval_actor_restore_path=exp/multitask_RL/bcflowactor_only/libero_90-living_room_scene1/bcflowactor_livingroomscene1__alphabet_soup_ketchup_25_demos_IMAGE_sd00020251227_144347/params_140000.pkl \
---save_interval=1000 \
+--save_interval=50 \
 \
 --horizon_length=5 \
 --agent=agents/acifql.py \
