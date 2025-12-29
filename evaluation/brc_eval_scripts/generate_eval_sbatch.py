@@ -204,22 +204,25 @@ if __name__ == '__main__':
     )
     
     # Option 1: Use command line arguments
-    parser.add_argument('--n_vals', type=int, nargs='+',
+    parser.add_argument('--n_vals', type=int, nargs='+', required=True,
                        help='List of n values to evaluate (e.g., 1 2 4 8 16)')
     parser.add_argument('--actor_restore_path', type=str,
+    required=True,
                        help='Path to actor checkpoint')
     parser.add_argument('--critic_restore_path', type=str,
+    required=True,
                        help='Path to critic checkpoint')
     parser.add_argument('--env_name', type=str,
-                       default='libero_90-living_room_scene1',
+    required=True,  
                        help='Environment name')
     parser.add_argument('--task_name', type=str,
-                       default='pick_up_the_alphabet_soup_and_put_it_in_the_basket|pick_up_the_ketchup_and_put_it_in_the_basket',
+    required=True,
                        help='Task name(s)')
     parser.add_argument('--wandb_name', type=str,
+    required=True,
                        help='Base wandb run name')
     parser.add_argument('--output_file', type=str,
-                       default='eval_best_of_n_jobs.sh',
+    required=False,
                        help='Output shell script filename')
     
     args = parser.parse_args()

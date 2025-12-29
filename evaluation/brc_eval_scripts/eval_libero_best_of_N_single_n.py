@@ -21,7 +21,7 @@ import argparse
 from utils.log_utils import setup_wandb, get_exp_name, get_flag_dict, CsvLogger, get_sample_input_output_log_to_wandb, get_wandb_video
 import time
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.getcwd())
 from evaluation_libero import evaluate
 
 import wandb
@@ -87,7 +87,7 @@ def evaluate_single_n(n, env_name, task_name, actor_restore_path, critic_restore
     
     # Setup environment and datasets
     env, eval_env, train_dataset, val_dataset, names_to_return = make_env_and_datasets(
-        env_name, task_name, augmentation_type='none', 
+        env_name, task_name, augmentation_type='none', augmentation_reward=0.0,
         num_parallel_envs=NUM_PARALLEL_ENVS, keys_to_load=KEYS_TO_LOAD, 
         use_hardcoded_eval_envs=False)
     
