@@ -10,4 +10,4 @@ dist/
 exp/
 wandb/
 eval_results/
-*videos.pkl
+per_eval_videos.pkl
