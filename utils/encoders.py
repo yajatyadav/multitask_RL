@@ -224,37 +224,57 @@ class CombinedEncoder(nn.Module):
         
         return out
 
+class ImageProprioEncoder(nn.Module):
+    width: int = 1
+    stack_sizes: tuple = (16, 32, 32)
+    num_blocks: int = 2
+    dropout_rate: float = None
+    mlp_hidden_dims: Sequence[int] = (512,)
+    layer_norm: bool = False
 
-# class CombinedEncoder(nn.Module):
-#     width: int = 1
-#     stack_sizes: tuple = (16, 32, 32)
-#     num_blocks: int = 2
-#     dropout_rate: float = None
-#     mlp_hidden_dims: Sequence[int] = (512,)
-#     layer_norm: bool = False
-
-#     @nn.compact
-#     def __call__(self, obs, train=True):
-#         # obs is a dict of batches, let's unpack it  
-
-#         task_embedding = obs['language']
-#         proprio = obs['proprio']
-#         image_primary = obs['agentview_rgb']
-#         image_wrist = obs['eye_in_hand_rgb']
+    @nn.compact
+    def __call__(self, obs, train=True):
+        # obs is a dict of batches, let's unpack it
+        proprio = obs['proprio']
+        image_primary = obs['agentview_rgb']
+        image_wrist = obs['eye_in_hand_rgb']
         
+        # Check if we have 5D input (batch, num_samples, H, W, C)
+        is_5d = image_primary.ndim == 5
         
-#         # instead of calling impala twice, just stack images channel-wise and pass this 6-channel image to FilmImpalaEncoder
-#         stacked_images = jnp.concatenate([image_primary, image_wrist], axis=-1)
+        if is_5d:
+            # Store original shape for unflattening
+            batch_size, num_samples = image_primary.shape[:2]
+            
+            # Flatten batch and num_samples dimensions
+            # Images: (batch, num_samples, H, W, C) -> (batch * num_samples, H, W, C)
+            image_primary = image_primary.reshape((batch_size * num_samples, *image_primary.shape[2:]))
+            image_wrist = image_wrist.reshape((batch_size * num_samples, *image_wrist.shape[2:]))
+            
+            # Proprio: (batch, num_samples, proprio_dim) -> (batch * num_samples, proprio_dim)
+            if proprio is not None:
+                proprio = proprio.reshape((batch_size * num_samples, proprio.shape[-1]))
+        
+        # Stack images channel-wise and pass through FiLMImpalaEncoder
+        stacked_images = jnp.concatenate([image_primary, image_wrist], axis=-1)
 
-#         out = FiLMImpalaEncoder(
-#             width=self.width, 
-#             stack_sizes=self.stack_sizes, 
-#             num_blocks=self.num_blocks, 
-#             dropout_rate=self.dropout_rate, 
-#             mlp_hidden_dims=self.mlp_hidden_dims, 
-#             layer_norm=self.layer_norm)(stacked_images, task_embedding, train=train)     
-#         combined_out = jnp.concatenate([out, proprio], axis=-1)
-#         return combined_out
+        out = ImpalaEncoder(
+            width=self.width, 
+            stack_sizes=self.stack_sizes, 
+            num_blocks=self.num_blocks, 
+            dropout_rate=self.dropout_rate, 
+            mlp_hidden_dims=self.mlp_hidden_dims, 
+            layer_norm=self.layer_norm)(stacked_images, train=train)
+        
+        # Concatenate with proprio
+        if proprio is not None:
+            out = jnp.concatenate([out, proprio], axis=-1)
+        
+        if is_5d:
+            # Unflatten back to (batch, num_samples, features)
+            out = out.reshape((batch_size, num_samples, out.shape[-1]))
+        
+        return out
 
 class StateSpaceEncoder(nn.Module):
     @nn.compact
@@ -299,6 +319,9 @@ encoder_modules = {
 
     'image_only_tiny': functools.partial(ImageOnlyEncoder, num_blocks=1, stack_sizes=(4, 4), mlp_hidden_dims=(128,)),
     'image_only_small': functools.partial(ImageOnlyEncoder, num_blocks=1),
+
+    'image_proprio_small': functools.partial(ImageProprioEncoder, num_blocks=1),
+    'image_proprio_medium': functools.partial(ImageProprioEncoder, stack_sizes=(32, 64, 64), mlp_hidden_dims=(128,)),
 
     'impala': ImpalaEncoder,
     'impala_debug': functools.partial(ImpalaEncoder, num_blocks=1, stack_sizes=(4, 4)),

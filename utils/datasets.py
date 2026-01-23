@@ -191,7 +191,20 @@ class Dataset(FrozenDict):
     def sample_sequence(self, batch_size, sequence_length, discount, idxs_to_use=None):
         # TODO(YY): hack so we can use sample_sequence to controllably sample from start/middle/end of trajectories
         if idxs_to_use is None:
-            idxs = np.random.randint(self.size - sequence_length + 1, size=batch_size)
+            # Build list of valid starting indices that don't cross episode boundaries
+            initial_locs = self.initial_locs
+            terminal_locs = self.terminal_locs
+            
+            valid_starts = []
+            for ep_start, ep_end in zip(initial_locs, terminal_locs):
+                # Valid starts for this episode: can start from ep_start up to ep_end - sequence_length + 1
+                max_start = ep_end - sequence_length + 1
+                if max_start >= ep_start:
+                    valid_starts.append(np.arange(ep_start, max_start + 1))
+            
+            valid_starts = np.concatenate(valid_starts)
+            replace = batch_size > len(valid_starts) # only do replacement if we need more samples than the number of valid starts
+            idxs = np.random.choice(valid_starts, size=batch_size, replace=replace)
         else:
             idxs = idxs_to_use
         

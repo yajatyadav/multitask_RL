@@ -22,6 +22,7 @@ class ACBCFlowActorAgent(flax.struct.PyTreeNode):
 
     def actor_loss(self, batch, grad_params, rng=None):
         """Compute the behavioral flow-matching actor loss."""
+        import pdb; pdb.set_trace()
         
         if self.config["action_chunking"]:
             batch_actions = jnp.reshape(batch["actions"], (batch["actions"].shape[0], -1))

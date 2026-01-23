@@ -1,14 +1,21 @@
 import os
-import socket
+
+os.environ['MUJOCO_GL'] = 'egl'
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 xla_flags = os.environ.get('XLA_FLAGS', '')
 xla_flags += ' --xla_gpu_triton_gemm_any=True'
 os.environ['XLA_FLAGS'] = xla_flags
+if 'CUDA_VISIBLE_DEVICES' in os.environ:
+    os.environ['EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
+    os.environ['MUJOCO_EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
 
-import glob, tqdm, wandb, os, json, random, time, jax
+import socket, glob, tqdm, wandb, os, json, random, time, jax
 from absl import app, flags
 from ml_collections import config_flags
-from utils.log_utils import setup_wandb, get_exp_name, get_flag_dict, CsvLogger, get_sample_input_output_log_to_wandb, get_wandb_video, build_network_tree
 from rich.console import Console
+
+from utils.log_utils import setup_wandb, get_exp_name, get_flag_dict, CsvLogger, get_sample_input_output_log_to_wandb, get_wandb_video, build_network_tree
+
 from envs.env_utils import make_env_and_datasets
 from envs.ogbench_utils import make_ogbench_env_and_datasets
 from envs.robomimic_utils import is_robomimic_env
@@ -25,45 +32,55 @@ import numpy as np
 import json
 import subprocess
 
-if 'CUDA_VISIBLE_DEVICES' in os.environ:
-    os.environ['EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
-    os.environ['MUJOCO_EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
+
+
+config_flags.DEFINE_config_file('agent', 'agents/acifql.py', lock_config=False)
+
 
 FLAGS = flags.FLAGS
 
+
+# housekeeping
 flags.DEFINE_string('exp_name_prefix', '', 'Experiment name prefix.')
 flags.DEFINE_string('run_group', 'Debug', 'Run group.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
+flags.DEFINE_string('save_dir', 'exp/', 'Save directory.')
+
+# eval
 flags.DEFINE_string('env_name', 'libero_90-kitchen_scene2', 'Environment (dataset) name.')
 flags.DEFINE_string('task_name', '', 'Task name.')
 flags.DEFINE_bool('use_hardcoded_eval_envs', False, 'Whether to use hardcoded eval environments.')
+
+# data augmentation
 flags.DEFINE_string('augmentation_type', 'none', 'Augmentation type: none (no aug), task (for task only), first (for first task in scene), exhaustive (for all tasks in all scenes from env).')
 flags.DEFINE_float('augmentation_reward', 0.0, 'The reward for relabeled trajectories. This is the value before the -1 shift is applied!')
 flags.DEFINE_string('augmentation_dict', '{}', 'Augmentation dictionary: {task_name: [augment_tasks]}.')
-flags.DEFINE_string('save_dir', 'exp/', 'Save directory.')
-flags.DEFINE_integer('num_demos_to_use_per_task', -1, 'Number of demos to use per task.')
 
+# steps, logging, other intervals
 flags.DEFINE_integer('offline_steps', 1000000, 'Number of online steps.')
 flags.DEFINE_integer('online_steps', 0, 'Number of online steps.')
 flags.DEFINE_integer('buffer_size', 2000000, 'Replay buffer size.')
 flags.DEFINE_integer('log_interval', 5000, 'Logging interval.')
 flags.DEFINE_integer('num_input_output_to_log', 3, 'Number of transitions to log to wandb.')
 flags.DEFINE_integer('eval_interval', 100000, 'Evaluation interval.')
-
 flags.DEFINE_integer('save_interval', -1, 'Save interval.')
 flags.DEFINE_integer('start_training', 5000, 'when does training start')
+flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
+flags.DEFINE_bool('save_all_online_states', False, "save all trajectories to npy")
 
+# dataset kwargs
 flags.DEFINE_boolean('use_pixels', False, 'Whether to use pixels as observations during training and evaluation.')
 flags.DEFINE_boolean('use_proprio', False, 'Whether to use EEF proprio as observations during training and evaluation.')
 flags.DEFINE_boolean('use_mj_sim_state', False, 'Whether to use MJ sim state as observations during training and evaluation.')
 flags.DEFINE_boolean('use_language', False, 'Whether to use language as observations during training and evaluation.')
+flags.DEFINE_integer('num_demos_to_use_per_task', -1, 'Number of demos to use per task.')
 flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
 flags.DEFINE_boolean('use_negative_rewards', False, 'Whether to use -1/0 rewarding for training dataset.')
-
-flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
-
 flags.DEFINE_float('discount', 0.99, 'discount factor')
+flags.DEFINE_integer('horizon_length', 5, 'action chunking length.')
+flags.DEFINE_bool('sparse', False, "make the task sparse reward: prevents reward values like -2 (will be set to -1)")
 
+# eval args
 flags.DEFINE_list('eval_hosts', ['savio', 'brc', 'cluster'], 
                   'List of hostname keywords that trigger automatic evaluation on BRC')
 flags.DEFINE_string('eval_actor_restore_path', None, 'Path to actor checkpoint for evaluation.')
@@ -75,16 +92,12 @@ flags.DEFINE_integer('num_parallel_envs', 5, 'Number of parallel environments fo
 flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
-config_flags.DEFINE_config_file('agent', 'agents/acifql.py', lock_config=False)
-
+# misc dataset args (NOT USED)
 flags.DEFINE_float('dataset_proportion', 1.0, "Proportion of the dataset to use")
 flags.DEFINE_integer('dataset_replace_interval', 1000, 'Dataset replace interval, used for large datasets because of memory constraints')
 flags.DEFINE_string('ogbench_dataset_dir', None, 'OGBench dataset directory')
 
-flags.DEFINE_integer('horizon_length', 5, 'action chunking length.')
-flags.DEFINE_bool('sparse', False, "make the task sparse reward: prevents reward values like -2 (will be set to -1)")
 
-flags.DEFINE_bool('save_all_online_states', False, "save all trajectories to npy")
 
 class LoggingHelper:
     def __init__(self, csv_loggers, wandb_logger):
@@ -308,8 +321,7 @@ def main(_):
 
         # eval: do one at very start, very end, and in b/w using eval_interval. but if eval_interval is -1, we skip evaling
         if (FLAGS.eval_interval != -1) and (i == FLAGS.offline_steps or i == 5 or i % FLAGS.eval_interval == 0):
-            # during eval, the action chunk is executed fully
-
+            # NOTE: during eval, the action chunk is executed fully (since horizon=5 and open_loop_horizon=5 as well!)
 
             all_eval_info = []
             for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=len(eval_env), desc="Evaluating multi-task", position=0,leave=False):
