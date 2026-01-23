@@ -1,7 +1,0 @@
-{"time":"2025-12-24T17:21:44.249043433-08:00","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/wandb/run-20251224_172144-0q4ih51n/logs/debug-core.log"}
-{"time":"2025-12-24T17:21:44.736131493-08:00","level":"INFO","msg":"created new stream","id":"0q4ih51n"}
-{"time":"2025-12-24T17:21:44.736157073-08:00","level":"INFO","msg":"stream: started","id":"0q4ih51n"}
-{"time":"2025-12-24T17:21:44.73617643-08:00","level":"INFO","msg":"writer: Do: started","stream_id":"0q4ih51n"}
-{"time":"2025-12-24T17:21:44.73628376-08:00","level":"INFO","msg":"sender: started","stream_id":"0q4ih51n"}
-{"time":"2025-12-24T17:21:44.736304375-08:00","level":"INFO","msg":"handler: started","stream_id":"0q4ih51n"}
-{"time":"2025-12-24T17:21:44.893334211-08:00","level":"INFO","msg":"Starting system monitor"}

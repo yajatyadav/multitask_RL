@@ -184,7 +184,7 @@ def restore_agent_with_file(agent, file_path):
     assert os.path.exists(file_path), f'File {file_path} does not exist'
     with open(file_path, 'rb') as f:
         load_dict = pickle.load(f)
-
+    import pdb; pdb.set_trace()
     agent = flax.serialization.from_state_dict(agent, load_dict['agent'])
 
     print(f'Restored from {file_path}')

@@ -200,7 +200,8 @@ class CombinedEncoder(nn.Module):
             task_embedding = task_embedding.reshape((batch_size * num_samples, task_embedding.shape[-1]))
             
             # Proprio: (batch, num_samples, proprio_dim) -> (batch * num_samples, proprio_dim)
-            proprio = proprio.reshape((batch_size * num_samples, proprio.shape[-1]))
+            if proprio is not None:
+                proprio = proprio.reshape((batch_size * num_samples, proprio.shape[-1]))
         
         # Stack images channel-wise and pass through FiLMImpalaEncoder
         stacked_images = jnp.concatenate([image_primary, image_wrist], axis=-1)
@@ -214,13 +215,14 @@ class CombinedEncoder(nn.Module):
             layer_norm=self.layer_norm)(stacked_images, task_embedding, train=train)
         
         # Concatenate with proprio
-        combined_out = jnp.concatenate([out, proprio], axis=-1)
+        if proprio is not None:
+            out = jnp.concatenate([out, proprio], axis=-1)
         
         if is_5d:
             # Unflatten back to (batch, num_samples, features)
-            combined_out = combined_out.reshape((batch_size, num_samples, combined_out.shape[-1]))
+            out = out.reshape((batch_size, num_samples, out.shape[-1]))
         
-        return combined_out
+        return out
 
 
 # class CombinedEncoder(nn.Module):
@@ -295,6 +297,7 @@ encoder_modules = {
     'state_space': StateSpaceEncoder,
     'language_and_proprio': LanguageAndProprioEncoder,
 
+    'image_only_tiny': functools.partial(ImageOnlyEncoder, num_blocks=1, stack_sizes=(4, 4), mlp_hidden_dims=(128,)),
     'image_only_small': functools.partial(ImageOnlyEncoder, num_blocks=1),
 
     'impala': ImpalaEncoder,

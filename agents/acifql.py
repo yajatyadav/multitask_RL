@@ -20,7 +20,7 @@ class ACIFQLAgent(flax.struct.PyTreeNode):
 
     rng: Any
     network: Any
-    config: Any = nonpytree_field()
+    config: Any
 
     @staticmethod
     def expectile_loss(adv, diff, expectile):

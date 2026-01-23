@@ -58,6 +58,7 @@ flags.DEFINE_boolean('use_proprio', False, 'Whether to use EEF proprio as observ
 flags.DEFINE_boolean('use_mj_sim_state', False, 'Whether to use MJ sim state as observations during training and evaluation.')
 flags.DEFINE_boolean('use_language', False, 'Whether to use language as observations during training and evaluation.')
 flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
+flags.DEFINE_boolean('use_negative_rewards', False, 'Whether to use -1/0 rewarding for training dataset.')
 
 flags.DEFINE_integer('utd_ratio', 1, "update to data ratio")
 
@@ -184,7 +185,7 @@ def main(_):
                 **{k: v[:new_size] for k, v in ds.items()}
             )
         
-        if is_robomimic_env(FLAGS.env_name) or is_libero_env(FLAGS.env_name): # use -1/0 rewarding: the sparse reward is set to -1 if the reward is not 0
+        if FLAGS.use_negative_rewards: # use -1/0 rewarding: the sparse reward is set to -1 if the reward is not 0
             print(f"main.py:Translating dataset rewards by -1")
             penalty_rewards = ds["rewards"] - 1.0
             ds_dict = {k: v for k, v in ds.items()}
@@ -242,7 +243,7 @@ def main(_):
     # times_to_log_inputs = list(range(0, 1000, 1000 // FLAGS.num_input_output_to_log))
     print(f"Starting training loop.")
     offline_init_time = time.time()
-    for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1)):
+    for i in tqdm.tqdm(range(1, FLAGS.offline_steps + 1)): # make message last batch's loss
         log_step += 1
 
         # if FLAGS.ogbench_dataset_dir is not None and FLAGS.dataset_replace_interval != 0 and i % FLAGS.dataset_replace_interval == 0:
@@ -290,6 +291,7 @@ def main(_):
                     wandb_run_id=wandb_run_id,
                     output_file_dir='scripts/shell_scripts/train_eval/'
                 )
+                print(f"main.py:😈😈😈 Output file: {output_file}")
                 os.chmod(output_file, 0o755)
                 result = subprocess.run([output_file], 
                        capture_output=True, 

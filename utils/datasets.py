@@ -89,6 +89,104 @@ class Dataset(FrozenDict):
                 self.augment(batch, ['observations', 'next_observations'])
         return batch
 
+    def sample_sequence_at_trajectory_position(self, batch_size, sequence_length, discount, position):
+        """Sample sequences from distinct episodes, each starting at the given position.
+        
+        Args:
+            batch_size: Number of distinct trajectories' subsequences to sample.
+            sequence_length: Length of each sequence.
+            discount: Discount factor for cumulative rewards.
+            position: Starting position within each trajectory (0 = start of episode).
+        
+        Returns:
+            Batch dictionary with the same structure as sample_sequence.
+        """
+        initial_locs = self.initial_locs
+        terminal_locs = self.terminal_locs
+        
+        # Find episodes long enough: need at least (position + sequence_length) transitions
+        episode_lengths = terminal_locs - initial_locs + 1
+        valid_episodes = np.where(episode_lengths >= position + sequence_length)[0]
+
+        if batch_size == -1:
+            batch_size = len(valid_episodes)
+        
+        if len(valid_episodes) < batch_size:
+            raise ValueError(
+                f"Only {len(valid_episodes)} episodes have length >= {position + sequence_length}, "
+                f"but batch_size={batch_size}"
+            )
+        selected_episodes = np.random.choice(valid_episodes, size=batch_size, replace=False)
+        
+        # Compute starting indices: initial_loc + position for each selected episode
+        idxs = initial_locs[selected_episodes] + position
+        
+        # --- Rest is identical to sample_sequence ---
+        data = jax.tree_util.tree_map(lambda v: v[idxs], self._dict)
+
+        # Pre-compute all required indices
+        all_idxs = idxs[:, None] + np.arange(sequence_length)[None, :]  # (batch_size, sequence_length)
+        all_idxs = all_idxs.flatten()
+        
+        # Batch fetch data - handle both dict and array observations
+        def fetch_and_reshape(arr):
+            fetched = arr[all_idxs]
+            return fetched.reshape(batch_size, sequence_length, *arr.shape[1:])
+        
+        batch_observations = jax.tree_util.tree_map(fetch_and_reshape, self['observations'])
+        batch_next_observations = jax.tree_util.tree_map(fetch_and_reshape, self['next_observations'])
+        batch_actions = self['actions'][all_idxs].reshape(batch_size, sequence_length, *self['actions'].shape[1:])
+        batch_rewards = self['rewards'][all_idxs].reshape(batch_size, sequence_length, *self['rewards'].shape[1:])
+        batch_masks = self['masks'][all_idxs].reshape(batch_size, sequence_length, *self['masks'].shape[1:])
+        batch_terminals = self['terminals'][all_idxs].reshape(batch_size, sequence_length, *self['terminals'].shape[1:])
+        
+        # Calculate next_actions
+        next_action_idxs = np.minimum(all_idxs + 1, self.size - 1)
+        batch_next_actions = self['actions'][next_action_idxs].reshape(batch_size, sequence_length, *self['actions'].shape[1:])
+        
+        # Use vectorized operations to calculate cumulative rewards and masks
+        rewards = np.zeros((batch_size, sequence_length), dtype=float)
+        masks = np.ones((batch_size, sequence_length), dtype=float)
+        terminals = np.zeros((batch_size, sequence_length), dtype=float)
+        valid = np.ones((batch_size, sequence_length), dtype=float)
+        
+        # Vectorized calculation
+        rewards[:, 0] = batch_rewards[:, 0].squeeze()
+        masks[:, 0] = batch_masks[:, 0].squeeze()
+        terminals[:, 0] = batch_terminals[:, 0].squeeze()
+        
+        discount_powers = discount ** np.arange(sequence_length)
+        for i in range(1, sequence_length):
+            rewards[:, i] = rewards[:, i-1] + batch_rewards[:, i].squeeze() * discount_powers[i]
+            masks[:, i] = np.minimum(masks[:, i-1], batch_masks[:, i].squeeze())
+            terminals[:, i] = np.maximum(terminals[:, i-1], batch_terminals[:, i].squeeze())
+            valid[:, i] = 1.0 - terminals[:, i-1]
+        
+        # Reorganize observations data format - handle both dict and array
+        def transpose_if_visual(arr):
+            if len(arr.shape) == 5:  # Visual data: (batch, seq, h, w, c)
+                return arr.transpose(0, 2, 3, 1, 4)  # -> (batch, h, w, seq, c)
+            else:  # State data: maintain (batch, seq, state_dim)
+                return arr
+        
+        observations = jax.tree_util.tree_map(transpose_if_visual, batch_observations)
+        next_observations = jax.tree_util.tree_map(transpose_if_visual, batch_next_observations)
+        
+        actions = batch_actions  # (batch_size, sequence_length, action_dim)
+        next_actions = batch_next_actions  # (batch_size, sequence_length, action_dim)
+        
+        return dict(
+            observations=jax.tree_util.tree_map(lambda arr: arr.copy(), data['observations']),
+            full_observations=observations,
+            actions=actions,
+            masks=masks,
+            rewards=rewards,
+            terminals=terminals,
+            valid=valid,
+            next_observations=next_observations,
+            next_actions=next_actions,
+        )
+
     
     def sample_sequence(self, batch_size, sequence_length, discount, idxs_to_use=None):
         # TODO(YY): hack so we can use sample_sequence to controllably sample from start/middle/end of trajectories
