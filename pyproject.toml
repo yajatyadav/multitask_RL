@@ -13,7 +13,11 @@ authors = [
 ]
 
 dependencies = [
-
+    # notebok dependencies    "ipython",
+    "ipykernel",
+    "jupyter",
+    "notebook",
+    "matplotlib-inline",
     # LIBERO dependencies
     "torch",
     "robosuite==1.4.0",
@@ -22,7 +26,6 @@ dependencies = [
     "future",
     "easydict",
     "matplotlib",
-
     "moviepy",
     "h5py",
     "absl-py==2.2.2",
@@ -111,6 +114,7 @@ dependencies = [
     "wandb==0.19.9",
     "wrapt==1.17.2",
     "zipp==3.21.0",
+    "tensorflow>=2.20.0",
 ]
 
 [project.optional-dependencies]

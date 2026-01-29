@@ -90,7 +90,7 @@ class FrameStackWrapper(gymnasium.Wrapper):
 # augmentation types: 'first': uses the FIRST task per scene, using the other tasks in the scene as negative examples
 # 'task': uses task_name as positive, and other tasks with same scene as task_name as negative examples
 # 'exhaustive': in all scenes possible by env_name, every task will be augmented using all other tasks in the same scene as negative examples
-def make_env_and_datasets(env_name, task_name, augmentation_type, augmentation_reward, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5, use_hardcoded_eval_envs=False, demo_nums_to_use_per_task=None, augmentation_dict=None):
+def make_env_and_datasets(env_name, task_name, language_embedder, augmentation_type, augmentation_reward, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5, use_hardcoded_eval_envs=False, demo_nums_to_use_per_task=None, augmentation_dict=None, is_notebook=False):
     """Make offline RL environment and datasets.
 
     Args:
@@ -102,47 +102,50 @@ def make_env_and_datasets(env_name, task_name, augmentation_type, augmentation_r
         A tuple of the environment, evaluation environment, training dataset, and validation dataset.
     """
 
-    if 'singletask' in env_name:
-        # OGBench.
-        env, train_dataset, val_dataset = ogbench.make_env_and_datasets(env_name)
-        eval_env = ogbench.make_env_and_datasets(env_name, env_only=True)
-        env = EpisodeMonitor(env, filter_regexes=['.*privileged.*', '.*proprio.*'])
-        eval_env = EpisodeMonitor(eval_env, filter_regexes=['.*privileged.*', '.*proprio.*'])
-        train_dataset = Dataset.create(**train_dataset)
-        val_dataset = Dataset.create(**val_dataset)
-    elif 'antmaze' in env_name and ('diverse' in env_name or 'play' in env_name or 'umaze' in env_name):
-        # D4RL AntMaze.
-        from envs import d4rl_utils
+    if 'libero' not in env_name:
+        raise ValueError(f'Environment {env_name} is not a libero environment!')
+    # if 'singletask' in env_name:
+    #     # OGBench.
+    #     env, train_dataset, val_dataset = ogbench.make_env_and_datasets(env_name)
+    #     eval_env = ogbench.make_env_and_datasets(env_name, env_only=True)
+    #     env = EpisodeMonitor(env, filter_regexes=['.*privileged.*', '.*proprio.*'])
+    #     eval_env = EpisodeMonitor(eval_env, filter_regexes=['.*privileged.*', '.*proprio.*'])
+    #     train_dataset = Dataset.create(**train_dataset)
+    #     val_dataset = Dataset.create(**val_dataset)
+    # elif 'antmaze' in env_name and ('diverse' in env_name or 'play' in env_name or 'umaze' in env_name):
+    #     # D4RL AntMaze.
+    #     from envs import d4rl_utils
 
-        env = d4rl_utils.make_env(env_name)
-        eval_env = d4rl_utils.make_env(env_name)
-        dataset = d4rl_utils.get_dataset(env, env_name)
-        train_dataset, val_dataset = dataset, None
-    elif 'pen' in env_name or 'hammer' in env_name or 'relocate' in env_name or 'door' in env_name:
-        # D4RL Adroit.
-        import d4rl.hand_manipulation_suite  # noqa
-        from envs import d4rl_utils
+    #     env = d4rl_utils.make_env(env_name)
+    #     eval_env = d4rl_utils.make_env(env_name)
+    #     dataset = d4rl_utils.get_dataset(env, env_name)
+    #     train_dataset, val_dataset = dataset, None
+    # elif 'pen' in env_name or 'hammer' in env_name or 'relocate' in env_name or 'door' in env_name:
+    #     # D4RL Adroit.
+    #     import d4rl.hand_manipulation_suite  # noqa
+    #     from envs import d4rl_utils
 
-        env = d4rl_utils.make_env(env_name)
-        eval_env = d4rl_utils.make_env(env_name)
-        dataset = d4rl_utils.get_dataset(env, env_name)
-        train_dataset, val_dataset = dataset, None
-    elif env_name.startswith("lift") or env_name.startswith("can") or env_name.startswith("square") or \
-        env_name.startswith("transport") or env_name.startswith("tool_hang"):
-        # RoboMimic.
-        from envs import robomimic_utils
+    #     env = d4rl_utils.make_env(env_name)
+    #     eval_env = d4rl_utils.make_env(env_name)
+    #     dataset = d4rl_utils.get_dataset(env, env_name)
+    #     train_dataset, val_dataset = dataset, None
+    # elif env_name.startswith("lift") or env_name.startswith("can") or env_name.startswith("square") or \
+    #     env_name.startswith("transport") or env_name.startswith("tool_hang"):
+    #     # RoboMimic.
+    #     from envs import robomimic_utils
 
-        env = robomimic_utils.make_env(env_name, seed=0)
-        eval_env = robomimic_utils.make_env(env_name, seed=42)
-        env = EpisodeMonitor(env)
-        eval_env = EpisodeMonitor(eval_env)
-        dataset = robomimic_utils.get_dataset(env, env_name)
-        train_dataset, val_dataset = dataset, None
+    #     env = robomimic_utils.make_env(env_name, seed=0)
+    #     eval_env = robomimic_utils.make_env(env_name, seed=42)
+    #     env = EpisodeMonitor(env)
+    #     eval_env = EpisodeMonitor(eval_env)
+    #     dataset = robomimic_utils.get_dataset(env, env_name)
+    #     train_dataset, val_dataset = dataset, None
     elif env_name.startswith("libero") or env_name.startswith("all_libero"):
         #libero
         from envs import libero_utils
         # during eval_time, we only load the keys that were used in training in the first place
-        eval_env_name = f'{env_name}-{task_name}'
+        assert task_name == '', 'we no longer support task_name for eval time! all envs must be contained inside env_name!'
+        # eval_env_name = f'{env_name}-{task_name}'
         env = None
         # env, _ = libero_utils.make_env(
         #     eval_env_name,
@@ -152,18 +155,21 @@ def make_env_and_datasets(env_name, task_name, augmentation_type, augmentation_r
         #     seed=0,
         #     use_hardcoded_eval_envs=use_hardcoded_eval_envs,
         # ) # for now, online env will ALSO generate several parallel libero envs!
+        print(f"🤪🤪🤪 making eval env for {env_name}")
         eval_env, names_to_return = libero_utils.make_env(
-            eval_env_name, 
+            env_name, 
             task_name,
+            language_embedder=language_embedder,
             num_parallel_envs=num_parallel_envs, 
             use_hardcoded_eval_envs=use_hardcoded_eval_envs, 
             keys_to_load=keys_to_load, 
             seed=42,
+            is_notebook=is_notebook,
         )
         ## YY: removing this wrapper as eval wants raw eval object
         # env = EpisodeMonitor(env)
         # eval_env = EpisodeMonitor(eval_env)
-        dataset = libero_utils.get_dataset(env, env_name, task_name, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=demo_nums_to_use_per_task, augmentation_dict=augmentation_dict) # keys_to_load to control what gets loaded in!
+        dataset = libero_utils.get_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=demo_nums_to_use_per_task, augmentation_dict=augmentation_dict) # keys_to_load to control what gets loaded in!
         train_dataset, val_dataset = dataset, None
     else:
         raise ValueError(f'Unsupported environment: {env_name}')

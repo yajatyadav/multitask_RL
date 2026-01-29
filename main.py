@@ -73,6 +73,7 @@ flags.DEFINE_boolean('use_pixels', False, 'Whether to use pixels as observations
 flags.DEFINE_boolean('use_proprio', False, 'Whether to use EEF proprio as observations during training and evaluation.')
 flags.DEFINE_boolean('use_mj_sim_state', False, 'Whether to use MJ sim state as observations during training and evaluation.')
 flags.DEFINE_boolean('use_language', False, 'Whether to use language as observations during training and evaluation.')
+flags.DEFINE_string('language_embedder', 'INVALID', 'Language embedder: one-hot or bert.')
 flags.DEFINE_integer('num_demos_to_use_per_task', -1, 'Number of demos to use per task.')
 flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
 flags.DEFINE_boolean('use_negative_rewards', False, 'Whether to use -1/0 rewarding for training dataset.')
@@ -117,7 +118,8 @@ def main(_):
     exp_name = FLAGS.exp_name_prefix + get_exp_name(FLAGS.seed)
     run = setup_wandb(entity='yajatyadav', project='multitask_RL', group=FLAGS.run_group, name=exp_name)
     
-    FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, FLAGS.env_name, exp_name)
+    # FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, FLAGS.env_name, exp_name)
+    FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, exp_name)
     os.makedirs(FLAGS.save_dir, exist_ok=True)
     flag_dict = get_flag_dict()
     with open(os.path.join(FLAGS.save_dir, 'flags.json'), 'w') as f:
@@ -161,6 +163,7 @@ def main(_):
         env, eval_env, train_dataset, val_dataset, names_to_return = make_env_and_datasets(
             FLAGS.env_name,
             FLAGS.task_name,
+            FLAGS.language_embedder,
             FLAGS.augmentation_type,
             FLAGS.augmentation_reward,
             num_parallel_envs=FLAGS.num_parallel_envs,

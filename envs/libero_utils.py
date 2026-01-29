@@ -14,7 +14,7 @@ from tqdm import tqdm
 import math
 import jax
 import jax.numpy as jnp
-
+from collections import defaultdict
 from utils.datasets import Dataset
 
 import sys
@@ -23,6 +23,28 @@ from libero.libero.envs.env_wrapper import ControlEnv, OffScreenRenderEnv
 from libero.libero.utils import get_libero_path
 from libero.libero.envs import SubprocVectorEnv
 from libero.libero import benchmark
+
+class DummyVectorEnv:
+    """Synchronous vectorized environment (no multiprocessing). Use for notebook compatibility."""
+    
+    def __init__(self, env_fns):
+        self.envs = [fn() for fn in env_fns]
+        self.num_envs = len(self.envs)
+    
+    def reset(self):
+        return [env.reset() for env in self.envs]
+    
+    def step(self, actions):
+        results = [env.step(a) for env, a in zip(self.envs, actions)]
+        obs, rewards, dones, infos = zip(*results)
+        # add env_id field to infos
+        for env_id, info in enumerate(infos):
+            info['env_id'] = env_id
+        return list(obs), list(rewards), list(dones), list(infos)
+    
+    def close(self):
+        for env in self.envs:
+            env.close()
 
 
 LIBERO_WARMUP_STEPS = 15
@@ -54,7 +76,6 @@ def build_libero_one_hot_table():
 
 
 LIBERO_ONE_HOT_TABLE = build_libero_one_hot_table()
-
 class OneHotEmbedding_Libero:
     @staticmethod
     def encode(string):
@@ -80,6 +101,35 @@ class OneHotEmbedding_Libero:
         index = LIBERO_ONE_HOT_TABLE[standardize_string(string)]
         return np.eye(NUM_UNIQUE_LIBERO_TASKS)[index]
 
+BERT_EMBEDDINGS = np.load('embeddings/libero_bert_embeddings.npy', allow_pickle=True).item()
+class BertEmbedding_Libero:
+    @staticmethod
+    def encode(string):
+        """Encode a single string into a BERT embedding vector.
+        
+        Args:
+            string: A single string (not a list)
+            
+        Returns:
+            BERT embedding vector of shape (768,)
+        """
+        def standardize_string(s):
+            if isinstance(s, bytes):
+                s = s.decode("utf-8")
+            s = s.lower().replace("_", " ")
+            return s
+        
+        if not isinstance(string, (str, bytes)):
+            raise TypeError(f"Expected a single string, got {type(string)}")
+        
+        key = standardize_string(string)
+        return BERT_EMBEDDINGS[key]
+
+LANGUAGE_EMBEDDERS = {
+    "one-hot": OneHotEmbedding_Libero,
+    "bert": BertEmbedding_Libero,
+}
+
 
 def is_libero_env(env_name):
     """determine if an env is libero"""
@@ -104,7 +154,7 @@ def _get_normalization_path(env_name):
     print(f"TODO(YY): Normalization path not implemented for {env_name}")
     # raise NotImplementedError("TODO(YY): Normalization path not implemented")
 
-def extract_all_libero_env_names(env_name, task_name):
+def extract_all_libero_env_names_OLD(env_name, task_name):
     all_tasks = task_name.split('|')
     print(f"all_tasks: {all_tasks}")
     suites = []
@@ -145,7 +195,41 @@ def extract_all_libero_env_names(env_name, task_name):
     return all_names
 
 
-def make_env(env_name, task_name,num_parallel_envs, use_hardcoded_eval_envs=False, render_resolution=128, keys_to_load=[], seed=0):
+def extract_all_libero_env_names(env_name, task_name):
+    assert task_name == '', 'we no longer support task_name for eval time! all envs must be contained inside env_name!'
+    env_strs = env_name.split('|')
+    all_names = defaultdict(list)
+    for env_str in env_strs:
+        pieces = env_str.split('-')
+        if len(pieces) == 2: # only suite + task
+            suite = pieces[0]
+            scene = ''
+            task = pieces[1]
+            target_task_name = task
+        elif len(pieces) == 3: # suite + scene + task
+            suite = pieces[0]
+            scene = pieces[1]
+            task = pieces[2]
+            target_task_name = scene + '_' + task
+        else:
+            raise ValueError(f"Invalid env string: {env_str}")
+        
+        suite_containing_task = benchmark.get_benchmark_dict()[suite]()
+        for task_id in range(suite_containing_task.n_tasks):
+            task = suite_containing_task.get_task(task_id)
+            # language = task.language.replace(" ", "_").lower()
+            if task.name.lower() == target_task_name.lower():
+                all_names[suite].append(f"{suite}-{task.name}")
+                break
+    
+    for suite in all_names.keys():
+        all_names[suite] = sorted(all_names[suite])
+    
+    print(f"all env names: {all_names}")
+    return all_names
+
+
+def make_env(env_name, task_name, language_embedder, num_parallel_envs, use_hardcoded_eval_envs=False, render_resolution=128, keys_to_load=[], seed=0, is_notebook=False):
     """
     NOTE: is now returning a LIST of environments, thus the main script needs to sequentiall loop and call evaluate() on each..
     """
@@ -174,7 +258,6 @@ def make_env(env_name, task_name,num_parallel_envs, use_hardcoded_eval_envs=Fals
     print("evaluation environment will return keys: ", keys_to_load)
 
     all_env_names = extract_all_libero_env_names(env_name, task_name)
-    print(f"All possible envs, sorted alphabetically: there are {len(all_env_names)} total envs")
     
     HARDCODED_EVAL_ENVS = {
         "libero_spatial": [
@@ -201,14 +284,15 @@ def make_env(env_name, task_name,num_parallel_envs, use_hardcoded_eval_envs=Fals
 
     
     envs_to_eval = []
-    if use_hardcoded_eval_envs:
-        for suite, suite_eval_envs in HARDCODED_EVAL_ENVS.items():
-            envs_to_eval.extend([env for env in suite_eval_envs])
-    else:
-        for suite, suite_eval_envs in all_env_names.items():
-            envs_to_eval.extend([env for env in suite_eval_envs])
-    
-    print(f" {len(envs_to_eval)=} Environments to evaluate: {envs_to_eval}")
+    # if use_hardcoded_eval_envs:
+    #     for suite, suite_eval_envs in HARDCODED_EVAL_ENVS.items():
+    #         envs_to_eval.extend([env for env in suite_eval_envs])
+    # else:
+    #     for suite, suite_eval_envs in all_env_names.items():
+    #         envs_to_eval.extend([env for env in suite_eval_envs])
+    for suite in all_env_names.keys():
+        envs_to_eval.extend([env for env in all_env_names[suite]])    
+    print(f" 😎😎😎 {len(envs_to_eval)=} Environments to evaluate: {envs_to_eval}")
 
     env_list, names_to_return = [], []
     for i, env_name in enumerate(envs_to_eval):
@@ -217,10 +301,12 @@ def make_env(env_name, task_name,num_parallel_envs, use_hardcoded_eval_envs=Fals
             seed=seed + (i * 50_000),
             eval_need_camera_obs=eval_need_camera_obs,
             num_parallel_envs=num_parallel_envs,
+            language_embedder=language_embedder,
             render_resolution=render_resolution,
             obs_keys=keys_to_load,
             keys_to_output_map=keys_to_output_map,
             normalization_path=normalization_path,
+            is_notebook=is_notebook,
         )
         env_list.append(env)
         names_to_return.append(env_name)
@@ -251,7 +337,7 @@ def stack_dict_list(dict_list):
     keys = dict_list[0].keys()
     return {k: np.concatenate([d[k] for d in dict_list], axis=0) for k in keys}
 
-def get_dataset(env, env_name, task_name, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=None, augmentation_dict=None):
+def get_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=None, augmentation_dict=None):
     # data holders
     observations = []
     actions = []
@@ -270,7 +356,7 @@ def get_dataset(env, env_name, task_name, augmentation_type, augmentation_reward
             print(f"😎😎😎 ONLY using {demo_nums_to_use_per_task} demos for target_task: {target_task_name}")
             demos = [demos[i] for i in demo_nums_to_use_per_task]
 
-        task_embedding = OneHotEmbedding_Libero.encode(target_task_name)
+        task_embedding = LANGUAGE_EMBEDDERS[language_embedder].encode(target_task_name)
 
         this_task_num_timesteps = 0
         for ep in demos:
@@ -341,18 +427,21 @@ def get_dataset(env, env_name, task_name, augmentation_type, augmentation_reward
     distinct_scenes = {}
     for suite in all_libero_env_names.keys():
         if suite != "libero_90":
-            distinct_scenes[suite] = ["*"]
-            continue        
-        distinct_scenes[suite] = []
+            distinct_scenes[suite] = {"*": []}
+        else:        
+            distinct_scenes[suite] = defaultdict(list)
+        
         for env_name in all_libero_env_names[suite]:
+            if suite != "libero_90":
+                distinct_scenes[suite]["*"].append(env_name)
+                continue
             prefix = env_name.split("-")[1]
             get_scene_prefix = lambda s: (re.match(r'^[^\d]*\d+', s) or re.match(r'.*', s)).group()
             scene = get_scene_prefix(prefix)
-            if scene not in distinct_scenes[suite]:
-                distinct_scenes[suite].append(scene)    
-    print(f"🤪🤪🤪 distinct_scenes: {distinct_scenes}")
+            distinct_scenes[suite][scene].append(env_name)
 
     # using switch case + functions here to handle the different augmentation types
+    assert augmentation_type == 'none', "Augmentation type 'none' is the only supported augmentation type for now"
     match augmentation_type:
         case 'none':
             num_timesteps = none_augmentation(distinct_scenes, task_name, process_task, libero_dataset_dir)
@@ -449,6 +538,7 @@ def get_dataset(env, env_name, task_name, augmentation_type, augmentation_reward
 
 
 def none_augmentation(distinct_scenes, task_name, process_task_fn, libero_dataset_dir):
+    # print(f"🤪🤪🤪 none_augmentation with {distinct_scenes=}")
     all_tasks = task_name.split('|')
     # if task_name != '':
     #     assert len(distinct_scenes) == 1, f'distinct_scenes has {len(distinct_scenes)} suites, but expected {len(all_tasks)}'
@@ -460,25 +550,21 @@ def none_augmentation(distinct_scenes, task_name, process_task_fn, libero_datase
     for suite in distinct_scenes.keys():
         scenes = distinct_scenes[suite]
         for scene in scenes:
-            suite = suite.upper()
-            scene = scene.upper()
-            pattern = os.path.join(libero_dataset_dir, suite, f'{scene}_*.hdf5')
-            
-            for filepath in sorted(glob.glob(pattern)):
-                target_task_name = os.path.basename(filepath).split(".")[0][:-5]
-                _check_dataset_exists(f"{suite}-{target_task_name}")
-                if "SCENE" in target_task_name:
-                    target_task_name = extract_libero_task_name_only(target_task_name)
-
-                if task_name != '' and target_task_name not in all_tasks:
-                    continue
+            for task_name in distinct_scenes[suite][scene]:
+                # print(f"😈😈😈 {suite=}, {scene=}, {task_name=}")
+                _check_dataset_exists(task_name)
                 
-                print(f"😈😈😈 {target_task_name=}")
-                zero_out_rewards = False
+                pattern = os.path.join(libero_dataset_dir, suite.upper(), f'{task_name.split("-")[1]}*.hdf5')
+                # print(f"😈😈😈 {pattern=}", 'there are', len(sorted(glob.glob(pattern))), 'files for this suite + scene + task')
+                filepath = sorted(glob.glob(pattern))[0]
+                assert len(sorted(glob.glob(pattern))) == 1, f'there are {len(sorted(glob.glob(pattern)))} files for this suite + scene + task, but expected 1'                
                 rm_dataset = h5py.File(filepath, "r")
-                this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, target_task_name)
+                lang_str = task_name.split("-")[1]
+                lang_str = lang_str if "SCENE" not in lang_str else extract_libero_task_name_only(lang_str)
+                zero_out_rewards = False
+                this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, lang_str)
                 num_timesteps += this_task_num_timesteps
-                print(f"🥳🥳🥳 {j=} Dataset {target_task_name} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {target_task_name=}")
+                print(f"🥳🥳🥳 {j=} Dataset for {lang_str} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {lang_str=}")
                 j += 1
     print(f"the total size of the dataset is {num_timesteps}")
     return num_timesteps
@@ -536,13 +622,13 @@ def exhaustive_augmentation(distinct_scenes, process_task_fn, libero_dataset_dir
             scene = scene.upper()
             pattern = os.path.join(libero_dataset_dir, suite, f'{scene}_*.hdf5')
             # print how many files for this scene
-            print(f"😈😈😈 {pattern=} {suite=} {scene=} , there are {len(sorted(glob.glob(pattern)))} files for this suite + scene")
+            # print(f"😈😈😈 {pattern=} {suite=} {scene=} , there are {len(sorted(glob.glob(pattern)))} files for this suite + scene")
 
             for filepath in sorted(glob.glob(pattern)):
                 target_task_name = os.path.basename(filepath).split(".")[0][:-5]
                 if "SCENE" in target_task_name:
                     target_task_name = extract_libero_task_name_only(target_task_name)
-                print(f"😈😈😈 {target_task_name=}")
+                # print(f"😈😈😈 {target_task_name=}")
                 
                 for fp in sorted(glob.glob(pattern)):
                     this_task_name = os.path.basename(fp).split(".")[0][:-5]
@@ -887,6 +973,7 @@ def get_libero_task_from_env(env_name):
 def make_libero_env(
     env_name,
     initial_state,
+    language_embedder,
     render=False,
     render_resolution=128,
     obs_keys=[],
@@ -928,7 +1015,7 @@ def make_libero_env(
     
     # Wrap environment
     task_language_str = task.language.replace(" ", "_").lower()
-    task_embedding = OneHotEmbedding_Libero.encode(task_language_str)
+    task_embedding = LANGUAGE_EMBEDDERS[language_embedder].encode(task_language_str)
     wrapped_env = LiberoEnvWrapper(
         env=base_env,
         normalization_path=normalization_path,
@@ -951,12 +1038,14 @@ class LiberoTopLevelEnvWrapper(gym.Env):
         env_name, # a string!!
         seed,
         eval_need_camera_obs,
-        num_parallel_envs,
+        num_parallel_envs,  
+        language_embedder,
         normalization_path=None,
         obs_keys=[],
         keys_to_output_map={},
         render_resolution=128,
         max_episode_length=-1,
+        is_notebook=False,
     ):        
         # TODO(YY): uncommenting this line causes that weird red ball + green line coming from robot arm issue (might just be an artifact...)
         # all_initial_states = get_libero_task_init_states(env_name) # pull all starting init states for this task, and distribute to all workers
@@ -969,6 +1058,7 @@ class LiberoTopLevelEnvWrapper(gym.Env):
                     env_name=env_name,
                     initial_state=initial_state,
                     render=render,
+                    language_embedder=language_embedder,
                     render_resolution=render_resolution,
                     max_episode_length=max_episode_length,
                     obs_keys=obs_keys,
@@ -992,12 +1082,12 @@ class LiberoTopLevelEnvWrapper(gym.Env):
             make_env_fn(env_name, all_initial_states[(i + 1) % len(all_initial_states)], eval_need_camera_obs, render_resolution, max_episode_length, obs_keys, keys_to_output_map, normalization_path, seed + i + 1)
             for i in range(num_parallel_envs)
             ]
-        
-        self.vec_env = SubprocVectorEnv(vec_env_fns)        
-        self.offscreen_env = SubprocVectorEnv(offscreen_env_fn)
+        VecEnvClass = DummyVectorEnv if is_notebook else SubprocVectorEnv
+        self.vec_env = VecEnvClass(vec_env_fns)        
+        self.offscreen_env = VecEnvClass(offscreen_env_fn)
 
         # create a single offscreen env to get the task embedding...
-        self.task_embedding = OneHotEmbedding_Libero.encode(get_libero_task_from_env(env_name).language.replace(" ", "_").lower())
+        self.task_embedding = LANGUAGE_EMBEDDERS[language_embedder].encode(get_libero_task_from_env(env_name).language.replace(" ", "_").lower())
         self.env_str = env_name
     
     def get_eval_env(self):
