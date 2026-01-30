@@ -287,9 +287,9 @@ class ClassifierAgent:
         actions = jnp.clip(actions, -1, 1)
         return actions
 
-NUM_EVAL_EPISODES = 52
+NUM_EVAL_EPISODES = 50
 NUM_VIDEO_EPISODES = 5
-NUM_PARALLEL_ENVS = 2
+NUM_PARALLEL_ENVS = 5
 VIDEO_FRAME_SKIP = 3
 def eval_agent(agent, eval_env, example_batch, names_to_return, n, logger):
     print(f"Evaluating agent on {len(eval_env)} environments")
@@ -321,10 +321,25 @@ def eval_agent(agent, eval_env, example_batch, names_to_return, n, logger):
 
 from envs.env_utils import make_env_and_datasets
 import wandb
+from typing import List
 
-if __name__ == "__main__":
+def main(env_name: str, scene: str, n_vals: List[int]):
+    assert scene != '', "Scene must be provided"
+    assert n_vals is not None, "N values must be provided"
+    assert env_name != '', "Environment name must be provided"
     task_name = ''
-    env_name = 'libero_90-living_room_scene1-pick_up_the_alphabet_soup_and_put_it_in_the_basket|libero_90-living_room_scene1-pick_up_the_ketchup_and_put_it_in_the_basket|libero_goal-open_the_middle_drawer_of_the_cabinet|libero_goal-turn_on_the_stove|libero_spatial-pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate|libero_spatial-pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate'
+    # env_names = 'libero_90-living_room_scene1-pick_up_the_alphabet_soup_and_put_it_in_the_basket|libero_90-living_room_scene1-pick_up_the_ketchup_and_put_it_in_the_basket|libero_goal-open_the_middle_drawer_of_the_cabinet|libero_goal-turn_on_the_stove|libero_spatial-pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate|libero_spatial-pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate'
+    # env_names = env_names.split('|')
+    
+    # EDIT THIS!!!
+    # env_name = env_names[4] + '|' + env_names[5]
+    # print(f"env_name: {env_name}")
+    # scene = 'libero_spatial'
+    
+    classifier_restore_path = f'/home/yajatyadav/multitask_reinforcement_learning/checkpoints/libero_bert_classifier_6task_{scene}_p_drop_state_0.5_2_epoch'
+    actor_restore_path = '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/exp/multitask_RL/bcflowactor_BERT/bcflowactor_6_tasks_BERT_25_demos_IMAGE_sd00020260128_174608/params_20000.pkl'
+    print(f"classifier_restore_path: {classifier_restore_path}")
+    print(f"actor_restore_path: {actor_restore_path}")
     
     augmentation_type = 'none'
     augmentation_reward = False
@@ -336,9 +351,11 @@ if __name__ == "__main__":
     discount = 0.99
     actor_encoder = 'combined_encoder_small'
 
+
+   
     log_this = True
     if log_this:
-        wandb.init(project="multitask_RL", entity="yajatyadav", group="eval_libero_bert_classifier_6task", name=f"25_demo_BERT_actor_2_epoch_p_drop_state_0.5_classifier")
+        wandb.init(project="multitask_RL", entity="yajatyadav", group="DEBUG_eval_libero_bert_classifier_6task_classifier_per_scene", name=f"25_demo_BERT_actor_2_epoch_p_drop_state_0.5_classifier__{scene}")
         logger = LoggingHelper(
         wandb_logger=wandb,
         )
@@ -352,11 +369,16 @@ if __name__ == "__main__":
     prefixes = ["env", "eval"] + [f"eval_{names_to_return[i]}" for i in range(len(names_to_return))]
     prefixes.append("offline_agent")
     
-    classifier_restore_path = '/home/yajatyadav/multitask_reinforcement_learning/checkpoints/libero_bert_classifier_6task_p_drop_state_0.5_2_epoch'
-    actor_restore_path = '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/exp/multitask_RL/bcflowactor_BERT/bcflowactor_6_tasks_BERT_25_demos_IMAGE_sd00020260128_174608/params_20000.pkl'
+    
+    
     example_batch = dataset.sample_sequence(1, sequence_length=horizon_length, discount=discount)
-
-    for N in [256]:
+    # N vals: [1, 8, 64, 256]
+    print(f"n_vals: {n_vals}")
+    for N in n_vals:
         print(f"Evaluating with N = {N}")
         classifier_agent = ClassifierAgent(classifier_restore_path, actor_restore_path, example_batch, horizon_length, actor_encoder, N)
-        eval_info = eval_agent(classifier_agent, eval_env, example_batch, names_to_return, n=N, logger=logger)   
+        eval_info = eval_agent(classifier_agent, eval_env, example_batch, names_to_return, n=N, logger=logger)
+
+import tyro
+if __name__ == "__main__":
+    tyro.cli(main)

@@ -203,8 +203,5 @@ def evaluate(
 
     # close the envs
     # env.close()
-    video_env.close()
-    eval_env.close()
-
     return stats, trajs, renders
 
