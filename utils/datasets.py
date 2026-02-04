@@ -447,3 +447,273 @@ def add_history(dataset, history_length):
         action_history=action_history)))
     
     return dataset
+
+
+import numpy as np
+import jax.tree_util
+
+import numpy as np
+import jax.tree_util
+
+
+class MultiDatasetWrapper:
+    """Wrapper for sampling from multiple Dataset objects with various strategies."""
+
+    def __init__(
+        self,
+        datasets,
+        batch_level_sampling,
+        weights=None,
+        return_dataset_indices=True,
+        shuffle_merged=True,
+    ):
+        """Initialize the multi-dataset wrapper.
+
+        Args:
+            datasets: List of Dataset objects.
+            weights: Optional list of weights for each dataset. If None, uses uniform weights.
+                     Weights are automatically normalized to sum to 1.
+            batch_level_sampling: If True, each batch maintains the exact proportions specified
+                                  by weights (e.g., 50/50 split means each batch is half from
+                                  each dataset). If False, samples are drawn independently
+                                  based on weights (proportions hold in expectation).
+            return_dataset_indices: If True, returned batches include a 'dataset_indices' key
+                                    indicating which dataset each sample came from.
+            shuffle_merged: If True, shuffle samples after merging batches from different
+                            datasets. Recommended to avoid dataset clustering in batches.
+        """
+        assert len(datasets) > 0, "Must provide at least one dataset"
+        self.datasets = datasets
+        self.num_datasets = len(datasets)
+        self.batch_level_sampling = batch_level_sampling
+        self.return_dataset_indices = return_dataset_indices
+        self.shuffle_merged = shuffle_merged
+
+        # Set up weights (normalized)
+        if weights is None:
+            self.weights = np.ones(self.num_datasets) / self.num_datasets
+        else:
+            weights = np.array(weights, dtype=np.float64)
+            assert len(weights) == self.num_datasets, "Must provide one weight per dataset"
+            assert np.all(weights >= 0), "Weights must be non-negative"
+            assert np.sum(weights) > 0, "Weights must sum to a positive value"
+            self.weights = weights / np.sum(weights)
+
+        # Compute total size
+        self.dataset_sizes = np.array([d.size for d in datasets])
+        self.size = np.sum(self.dataset_sizes)
+
+        # Propagate attributes from first dataset (assume all datasets share these)
+        self.frame_stack = datasets[0].frame_stack
+        self.p_aug = datasets[0].p_aug
+        self.return_next_actions = datasets[0].return_next_actions
+
+    def set_weights(self, weights):
+        """Update sampling weights."""
+        weights = np.array(weights, dtype=np.float64)
+        assert len(weights) == self.num_datasets
+        self.weights = weights / np.sum(weights)
+
+    def _compute_samples_per_dataset(self, batch_size):
+        """Compute how many samples to draw from each dataset for batch-level sampling."""
+        fractional_samples = self.weights * batch_size
+        samples_per_dataset = np.floor(fractional_samples).astype(int)
+
+        remainder = batch_size - np.sum(samples_per_dataset)
+        if remainder > 0:
+            fractional_parts = fractional_samples - samples_per_dataset
+            
+            # Randomly select among datasets, weighted by their fractional parts
+            # (handles ties naturally)
+            probs = fractional_parts / fractional_parts.sum()
+            top_indices = np.random.choice(
+                self.num_datasets, size=int(remainder), replace=False, p=probs
+            )
+            samples_per_dataset[top_indices] += 1
+
+        return samples_per_dataset
+
+    def _get_batch_size(self, batch):
+        """Get batch size from a batch dictionary."""
+        first_value = next(iter(batch.values()))
+        if isinstance(first_value, dict):
+            # Nested dict (e.g., observations with multiple keys)
+            return len(next(iter(first_value.values())))
+        else:
+            return len(first_value)
+
+    def _shuffle_batch(self, batch):
+        """Shuffle samples within a batch."""
+        batch_size = self._get_batch_size(batch)
+        perm = np.random.permutation(batch_size)
+        return jax.tree_util.tree_map(lambda x: x[perm], batch)
+
+    def _merge_batches(self, batches, dataset_indices_list=None):
+        """Merge multiple batch dictionaries into one."""
+        if len(batches) == 0:
+            raise ValueError("No batches to merge")
+
+        if len(batches) == 1:
+            merged = batches[0]
+            if self.return_dataset_indices and dataset_indices_list is not None:
+                merged['dataset_indices'] = np.concatenate(dataset_indices_list)
+            return merged
+
+        # Concatenate all batches
+        merged = {}
+        for key in batches[0].keys():
+            values = [b[key] for b in batches]
+            merged[key] = jax.tree_util.tree_map(
+                lambda *arrs: np.concatenate(arrs, axis=0),
+                *values
+            )
+
+        if self.return_dataset_indices and dataset_indices_list is not None:
+            merged['dataset_indices'] = np.concatenate(dataset_indices_list)
+
+        # Shuffle to interleave samples from different datasets
+        if self.shuffle_merged:
+            merged = self._shuffle_batch(merged)
+
+        return merged
+
+    def sample(self, batch_size, idxs=None):
+        """Sample a batch of transitions from the datasets.
+
+        Args:
+            batch_size: Number of samples to draw.
+            idxs: Not supported for multi-dataset wrapper (must be None).
+
+        Returns:
+            Batch dictionary with concatenated samples from all datasets.
+        """
+        if idxs is not None:
+            raise NotImplementedError("Custom indices not supported for MultiDatasetWrapper")
+
+        if self.batch_level_sampling:
+            # Each batch maintains exact proportions
+            samples_per_dataset = self._compute_samples_per_dataset(batch_size)
+
+            batches = []
+            dataset_indices_list = []
+            for i, (dataset, n_samples) in enumerate(zip(self.datasets, samples_per_dataset)):
+                if n_samples > 0:
+                    batches.append(dataset.sample(n_samples))
+                    dataset_indices_list.append(np.full(n_samples, i, dtype=np.int32))
+
+            return self._merge_batches(batches, dataset_indices_list)
+        else:
+            # Sample dataset indices based on weights (proportions hold in expectation)
+            dataset_choices = np.random.choice(
+                self.num_datasets, size=batch_size, p=self.weights
+            )
+
+            # Count samples needed from each dataset
+            unique, counts = np.unique(dataset_choices, return_counts=True)
+
+            batches = []
+            dataset_indices_list = []
+            for dataset_idx, count in zip(unique, counts):
+                batches.append(self.datasets[dataset_idx].sample(int(count)))
+                dataset_indices_list.append(np.full(count, dataset_idx, dtype=np.int32))
+
+            return self._merge_batches(batches, dataset_indices_list)
+
+    def sample_sequence(self, batch_size, sequence_length, discount, idxs_to_use=None):
+        """Sample sequences from the datasets.
+
+        Args:
+            batch_size: Number of sequences to sample.
+            sequence_length: Length of each sequence.
+            discount: Discount factor for cumulative rewards.
+            idxs_to_use: Not supported for multi-dataset wrapper (must be None).
+
+        Returns:
+            Batch dictionary with concatenated sequences from all datasets.
+        """
+        if idxs_to_use is not None:
+            raise NotImplementedError("Custom indices not supported for MultiDatasetWrapper")
+
+        if self.batch_level_sampling:
+            samples_per_dataset = self._compute_samples_per_dataset(batch_size)
+
+            batches = []
+            dataset_indices_list = []
+            for i, (dataset, n_samples) in enumerate(zip(self.datasets, samples_per_dataset)):
+                if n_samples > 0:
+                    batches.append(dataset.sample_sequence(n_samples, sequence_length, discount))
+                    dataset_indices_list.append(np.full(n_samples, i, dtype=np.int32))
+
+            return self._merge_batches(batches, dataset_indices_list)
+        else:
+            dataset_choices = np.random.choice(
+                self.num_datasets, size=batch_size, p=self.weights
+            )
+            unique, counts = np.unique(dataset_choices, return_counts=True)
+
+            batches = []
+            dataset_indices_list = []
+            for dataset_idx, count in zip(unique, counts):
+                batches.append(
+                    self.datasets[dataset_idx].sample_sequence(int(count), sequence_length, discount)
+                )
+                dataset_indices_list.append(np.full(count, dataset_idx, dtype=np.int32))
+
+            return self._merge_batches(batches, dataset_indices_list)
+
+    def sample_sequence_at_trajectory_position(self, batch_size, sequence_length, discount, position):
+        """Sample sequences starting at a specific trajectory position from the datasets.
+
+        Args:
+            batch_size: Number of sequences to sample.
+            sequence_length: Length of each sequence.
+            discount: Discount factor for cumulative rewards.
+            position: Starting position within each trajectory (0 = start of episode).
+
+        Returns:
+            Batch dictionary with concatenated sequences from all datasets.
+        """
+        if self.batch_level_sampling:
+            samples_per_dataset = self._compute_samples_per_dataset(batch_size)
+
+            batches = []
+            dataset_indices_list = []
+            for i, (dataset, n_samples) in enumerate(zip(self.datasets, samples_per_dataset)):
+                if n_samples > 0:
+                    batches.append(
+                        dataset.sample_sequence_at_trajectory_position(
+                            n_samples, sequence_length, discount, position
+                        )
+                    )
+                    dataset_indices_list.append(np.full(n_samples, i, dtype=np.int32))
+
+            return self._merge_batches(batches, dataset_indices_list)
+        else:
+            dataset_choices = np.random.choice(
+                self.num_datasets, size=batch_size, p=self.weights
+            )
+            unique, counts = np.unique(dataset_choices, return_counts=True)
+
+            batches = []
+            dataset_indices_list = []
+            for dataset_idx, count in zip(unique, counts):
+                batches.append(
+                    self.datasets[dataset_idx].sample_sequence_at_trajectory_position(
+                        int(count), sequence_length, discount, position
+                    )
+                )
+                dataset_indices_list.append(np.full(count, dataset_idx, dtype=np.int32))
+
+            return self._merge_batches(batches, dataset_indices_list)
+
+    def __len__(self):
+        return self.size
+
+    def __repr__(self):
+        return (
+            f"MultiDatasetWrapper(num_datasets={self.num_datasets}, "
+            f"sizes={list(self.dataset_sizes)}, weights={list(np.round(self.weights, 3))}, "
+            f"batch_level_sampling={self.batch_level_sampling}, "
+            f"shuffle_merged={self.shuffle_merged})"
+        )
+    """Wrapper for sampling from multiple Dataset objects with various strategies."""

@@ -90,7 +90,7 @@ class FrameStackWrapper(gymnasium.Wrapper):
 # augmentation types: 'first': uses the FIRST task per scene, using the other tasks in the scene as negative examples
 # 'task': uses task_name as positive, and other tasks with same scene as task_name as negative examples
 # 'exhaustive': in all scenes possible by env_name, every task will be augmented using all other tasks in the same scene as negative examples
-def make_env_and_datasets(env_name, task_name, language_embedder, augmentation_type, augmentation_reward, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5, use_hardcoded_eval_envs=False, demo_nums_to_use_per_task=None, augmentation_dict=None, is_notebook=False):
+def make_env_and_datasets(env_name, task_name, language_embedder, augmentation_type, augmentation_reward, batch_level_sampling, num_parallel_envs=1, keys_to_load=None, frame_stack=None, action_clip_eps=1e-5, use_hardcoded_eval_envs=False, demo_nums_to_use_per_task=None, augmentation_dict=None, is_notebook=False):
     """Make offline RL environment and datasets.
 
     Args:
@@ -144,7 +144,7 @@ def make_env_and_datasets(env_name, task_name, language_embedder, augmentation_t
         #libero
         from envs import libero_utils
         # during eval_time, we only load the keys that were used in training in the first place
-        assert task_name == '', 'we no longer support task_name for eval time! all envs must be contained inside env_name!'
+        # assert task_name == '', 'we no longer support task_name for eval time! all envs must be contained inside env_name!'
         # eval_env_name = f'{env_name}-{task_name}'
         env = None
         # env, _ = libero_utils.make_env(
@@ -156,7 +156,7 @@ def make_env_and_datasets(env_name, task_name, language_embedder, augmentation_t
         #     use_hardcoded_eval_envs=use_hardcoded_eval_envs,
         # ) # for now, online env will ALSO generate several parallel libero envs!
         print(f"🤪🤪🤪 making eval env for {env_name}")
-        eval_env, names_to_return = libero_utils.make_env(
+        eval_envs_iterator = libero_utils.make_env(
             env_name, 
             task_name,
             language_embedder=language_embedder,
@@ -169,7 +169,7 @@ def make_env_and_datasets(env_name, task_name, language_embedder, augmentation_t
         ## YY: removing this wrapper as eval wants raw eval object
         # env = EpisodeMonitor(env)
         # eval_env = EpisodeMonitor(eval_env)
-        dataset = libero_utils.get_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=demo_nums_to_use_per_task, augmentation_dict=augmentation_dict) # keys_to_load to control what gets loaded in!
+        dataset = libero_utils.get_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=demo_nums_to_use_per_task, augmentation_dict=augmentation_dict, batch_level_sampling=batch_level_sampling) # keys_to_load to control what gets loaded in!
         train_dataset, val_dataset = dataset, None
     else:
         raise ValueError(f'Unsupported environment: {env_name}')
@@ -182,13 +182,15 @@ def make_env_and_datasets(env_name, task_name, language_embedder, augmentation_t
     # eval_env.reset()
 
     # Clip dataset actions.
-    if action_clip_eps is not None:
-        train_dataset = train_dataset.copy(
-            add_or_replace=dict(actions=np.clip(train_dataset['actions'], -1 + action_clip_eps, 1 - action_clip_eps))
-        )
-        if val_dataset is not None:
-            val_dataset = val_dataset.copy(
-                add_or_replace=dict(actions=np.clip(val_dataset['actions'], -1 + action_clip_eps, 1 - action_clip_eps))
+    # only do action clipping for non-libero environments, as libero environments already clip actions during dataset creation.
+    if not env_name.startswith("libero"):
+        print(f"🤪🤪🤪 clipping actions with eps {action_clip_eps}")
+        if action_clip_eps is not None:
+            train_dataset = train_dataset.copy(
+                add_or_replace=dict(actions=np.clip(train_dataset['actions'], -1 + action_clip_eps, 1 - action_clip_eps))
             )
-
-    return env, eval_env, train_dataset, val_dataset, names_to_return
+            if val_dataset is not None:
+                val_dataset = val_dataset.copy(
+                    add_or_replace=dict(actions=np.clip(val_dataset['actions'], -1 + action_clip_eps, 1 - action_clip_eps))
+                )
+    return env, eval_envs_iterator, train_dataset, val_dataset

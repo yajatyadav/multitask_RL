@@ -10,4 +10,7 @@ dist/
 exp/
 wandb/
 eval_results/
+*.pkl
 *videos.pkl
+*.mp4
+bert_env/

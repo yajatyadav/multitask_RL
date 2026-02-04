@@ -114,16 +114,16 @@ class LoggingHelper:
             return
         self.wandb_logger.log({f'{prefix}/{k}': v for k, v in data.items()}, step=step)
 
-def load_classifier(save_dir):
+def load_classifier(save_dir, ckpt_num):
     """Load classifier from saved directory."""
     save_dir = Path(save_dir)
     
     # Load hyperparameters
-    with open(save_dir / 'hparams.json', 'r') as f:
+    with open(save_dir / f'hparams_{ckpt_num}.json', 'r') as f:
         hparams = json.load(f)
     
     # Load parameters
-    with open(save_dir / 'params.pkl', 'rb') as f:
+    with open(save_dir / f'params_{ckpt_num}.pkl', 'rb') as f:
         params = pickle.load(f)
     
     # Recreate model definition
@@ -142,8 +142,8 @@ def load_classifier(save_dir):
     return network, hparams
 
 class ClassifierAgent:
-    def __init__(self, classifier_network_restore_path, actor_restore_path, example_batch, horizon_length, actor_encoder, num_samples):
-        class_net, class_hparams = load_classifier(classifier_network_restore_path)
+    def __init__(self, classifier_network_restore_dir, classifier_ckpt_num, actor_restore_path, example_batch, horizon_length, actor_encoder, num_samples):
+        class_net, class_hparams = load_classifier(classifier_network_restore_dir, classifier_ckpt_num)
         self.classifier_network = class_net
         self.actor_network = self.restore_actor_network(actor_restore_path, copy.deepcopy(example_batch), horizon_length, actor_encoder)
         self.config = {"action_dim": example_batch["actions"].shape[-1], "horizon_length": horizon_length, "action_chunking": True, "actor_encoder": actor_encoder, "flow_steps": 10, "num_samples": num_samples}
@@ -291,10 +291,10 @@ NUM_EVAL_EPISODES = 50
 NUM_VIDEO_EPISODES = 5
 NUM_PARALLEL_ENVS = 5
 VIDEO_FRAME_SKIP = 3
-def eval_agent(agent, eval_env, example_batch, names_to_return, n, logger):
-    print(f"Evaluating agent on {len(eval_env)} environments")
+def eval_agent(agent, eval_envs_iterator, example_batch, total_envs, n, logger):
+    print(f"Evaluating agent on {total_envs} environments")
     all_eval_info = []
-    for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=len(eval_env), desc="Evaluating multi-task", position=0,leave=False):
+    for j, (eval_env_j, eval_env_j_name) in tqdm.tqdm(enumerate(eval_envs_iterator), total=total_envs, desc="Evaluating multi-task", position=0,leave=False):
         eval_info, trajs, renders = evaluate(
             agent=agent, 
             env=eval_env_j, 
@@ -303,11 +303,13 @@ def eval_agent(agent, eval_env, example_batch, names_to_return, n, logger):
             num_video_episodes=NUM_VIDEO_EPISODES, 
             num_parallel_envs=NUM_PARALLEL_ENVS, 
             video_frame_skip=VIDEO_FRAME_SKIP)
+        # close the env!
+        eval_env_j.close()
         all_eval_info.append(eval_info)
         if len(renders) > 0:
             # value_and_reward_visualization(trajs, agent, FLAGS.save_dir, log_step)
             eval_info['video'] = get_wandb_video(renders)
-        logger.log(eval_info, f"eval_{names_to_return[j]}", step=n)
+        logger.log(eval_info, f"eval_{eval_env_j_name}", step=n)
         # remove video before taking mean
         if 'video' in eval_info:
             del eval_info['video']
@@ -323,11 +325,12 @@ from envs.env_utils import make_env_and_datasets
 import wandb
 from typing import List
 
-def main(env_name: str, scene: str, n_vals: List[int]):
-    assert scene != '', "Scene must be provided"
+def main(classifier_restore_dir: str, classifier_ckpt_num: int, actor_restore_path: str, results_save_path: str, env_name: str, task_name: str, n_vals: List[int], wandb_group_name: str, wandb_run_name: str, horizon_length: int = 5):
+    # assert scene != '', "Scene must be provided"
     assert n_vals is not None, "N values must be provided"
     assert env_name != '', "Environment name must be provided"
-    task_name = ''
+    # create results save path if it doesn't exist
+    os.makedirs(results_save_path, exist_ok=True)
     # env_names = 'libero_90-living_room_scene1-pick_up_the_alphabet_soup_and_put_it_in_the_basket|libero_90-living_room_scene1-pick_up_the_ketchup_and_put_it_in_the_basket|libero_goal-open_the_middle_drawer_of_the_cabinet|libero_goal-turn_on_the_stove|libero_spatial-pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate|libero_spatial-pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate'
     # env_names = env_names.split('|')
     
@@ -336,18 +339,25 @@ def main(env_name: str, scene: str, n_vals: List[int]):
     # print(f"env_name: {env_name}")
     # scene = 'libero_spatial'
     
-    classifier_restore_path = f'/home/yajatyadav/multitask_reinforcement_learning/checkpoints/libero_bert_classifier_6task_{scene}_p_drop_state_0.5_2_epoch'
-    actor_restore_path = '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/exp/multitask_RL/bcflowactor_BERT/bcflowactor_6_tasks_BERT_25_demos_IMAGE_sd00020260128_174608/params_20000.pkl'
-    print(f"classifier_restore_path: {classifier_restore_path}")
+    # classifier_restore_path = f'/home/yajatyadav/multitask_reinforcement_learning/checkpoints/libero_bert_classifier_6task_{scene}_p_drop_state_0.5_2_epoch_{num_demos}_demos'
+    # actor_restore_path = '/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/exp/multitask_RL/bcflowactor_BERT/bcflowactor_6_tasks_BERT_25_demos_IMAGE_sd00020260128_174608/params_20000.pkl'
+    print(f"classifier_restore_dir: {classifier_restore_dir}")
+    print(f"classifier_ckpt_num: {classifier_ckpt_num}")
     print(f"actor_restore_path: {actor_restore_path}")
+    print(f"results_save_path: {results_save_path}")
+    print(f"env_name: {env_name}")
+    print(f"task_name: {task_name}")
+    print(f"n_vals: {n_vals}")
+    print(f"wandb_group_name: {wandb_group_name}")
     
     augmentation_type = 'none'
     augmentation_reward = False
+    batch_level_sampling = True
     
     language_embedder = 'bert'
     keys_to_load = ['agentview_rgb', 'eye_in_hand_rgb', 'language', 'proprio']
     
-    horizon_length = 5
+    # horizon_length = 5
     discount = 0.99
     actor_encoder = 'combined_encoder_small'
 
@@ -355,7 +365,7 @@ def main(env_name: str, scene: str, n_vals: List[int]):
    
     log_this = True
     if log_this:
-        wandb.init(project="multitask_RL", entity="yajatyadav", group="DEBUG_eval_libero_bert_classifier_6task_classifier_per_scene", name=f"25_demo_BERT_actor_2_epoch_p_drop_state_0.5_classifier__{scene}")
+        wandb.init(project="multitask_RL", entity="yajatyadav", group=wandb_group_name, name=wandb_run_name)
         logger = LoggingHelper(
         wandb_logger=wandb,
         )
@@ -365,20 +375,22 @@ def main(env_name: str, scene: str, n_vals: List[int]):
             to_log=False,
         )
 
-    _, eval_env, dataset, _, names_to_return = make_env_and_datasets(env_name, task_name, language_embedder, augmentation_type, augmentation_reward, num_parallel_envs=NUM_PARALLEL_ENVS, keys_to_load=keys_to_load + ['proprio'], demo_nums_to_use_per_task=[0], augmentation_dict=None, is_notebook=False)
-    prefixes = ["env", "eval"] + [f"eval_{names_to_return[i]}" for i in range(len(names_to_return))]
-    prefixes.append("offline_agent")
+    _, eval_envs_iterator, dataset, _ = make_env_and_datasets(env_name, task_name, language_embedder, augmentation_type, augmentation_reward, num_parallel_envs=NUM_PARALLEL_ENVS, keys_to_load=keys_to_load, batch_level_sampling=batch_level_sampling, demo_nums_to_use_per_task=[0], augmentation_dict=None, is_notebook=False)
     
-    
+
+    total_envs = len(dataset.datasets)
     
     example_batch = dataset.sample_sequence(1, sequence_length=horizon_length, discount=discount)
-    # N vals: [1, 8, 64, 256]
+    # free the dataset now to save mem
+    # N vals: [1, 8, 64, 256]   
+    print(f"total_envs: {total_envs}")
     print(f"n_vals: {n_vals}")
     for N in n_vals:
         print(f"Evaluating with N = {N}")
-        classifier_agent = ClassifierAgent(classifier_restore_path, actor_restore_path, example_batch, horizon_length, actor_encoder, N)
-        eval_info = eval_agent(classifier_agent, eval_env, example_batch, names_to_return, n=N, logger=logger)
-
+        classifier_agent = ClassifierAgent(classifier_restore_dir, classifier_ckpt_num, actor_restore_path, example_batch, horizon_length, actor_encoder, N)
+        eval_info = eval_agent(classifier_agent, eval_envs_iterator, example_batch, total_envs, n=N, logger=logger)
+        with open(os.path.join(results_save_path, f'{wandb_run_name}_N_{N}.pkl'), 'wb') as f:
+            pickle.dump(eval_info, f)
 import tyro
 if __name__ == "__main__":
     tyro.cli(main)

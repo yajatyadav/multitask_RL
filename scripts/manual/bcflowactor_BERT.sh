@@ -15,12 +15,12 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=bcflowactor_livingroomscene1__alphabet_soup_and_ketchup_BERT_6_demos_IMAGE_ \
---run_group=bcflowactor_BERT \
---env_name=libero_90-living_room_scene1 \
---task_name='pick_up_the_alphabet_soup_and_put_it_in_the_basket|pick_up_the_ketchup_and_put_it_in_the_basket' \
+--exp_name_prefix=bcflowactor_all_libero_90_BERT_25_demos_IMAGE_ \
+--run_group=bcflowactor_BERT_ALL_LIBERO_90 \
+--env_name=libero_90 \
+--task_name='' \
 --augmentation_type=none \
---num_demos_to_use_per_task=6 \
+--num_demos_to_use_per_task=25 \
 \
 --use_pixels=True \
 --use_proprio=True \
@@ -28,7 +28,7 @@ uv run main.py \
 --language_embedder=bert \
 --use_mj_sim_state=False \
 \
---offline_steps=250000 \
+--offline_steps=500000 \
 --eval_interval=20000 \
 --save_interval=20000 \
 \

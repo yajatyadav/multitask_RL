@@ -75,6 +75,7 @@ flags.DEFINE_boolean('use_mj_sim_state', False, 'Whether to use MJ sim state as 
 flags.DEFINE_boolean('use_language', False, 'Whether to use language as observations during training and evaluation.')
 flags.DEFINE_string('language_embedder', 'INVALID', 'Language embedder: one-hot or bert.')
 flags.DEFINE_integer('num_demos_to_use_per_task', -1, 'Number of demos to use per task.')
+flags.DEFINE_boolean('batch_level_sampling', True, 'Whether to equalize sampling of tasks in each batch at the batch level (True).')
 flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
 flags.DEFINE_boolean('use_negative_rewards', False, 'Whether to use -1/0 rewarding for training dataset.')
 flags.DEFINE_float('discount', 0.99, 'discount factor')
@@ -166,6 +167,7 @@ def main(_):
             FLAGS.language_embedder,
             FLAGS.augmentation_type,
             FLAGS.augmentation_reward,
+            FLAGS.batch_level_sampling,
             num_parallel_envs=FLAGS.num_parallel_envs,
             keys_to_load=keys_to_load,
             use_hardcoded_eval_envs=FLAGS.use_hardcoded_eval_envs,
@@ -221,7 +223,8 @@ def main(_):
 
         return ds
     
-    train_dataset = process_train_dataset(train_dataset)
+    # train_dataset = process_train_dataset(train_dataset)
+    ## TODO(YY): REMOVING DATASET PROCESSING FOR NOW, SINCE WE ARE NOT USING ANY REWARDS
     example_batch = train_dataset.sample_sequence(config['batch_size'], sequence_length=FLAGS.horizon_length, discount=discount)
     agent_class = agents[config['agent_name']]
     agent = agent_class.create(
@@ -323,7 +326,7 @@ def main(_):
                 
 
         # eval: do one at very start, very end, and in b/w using eval_interval. but if eval_interval is -1, we skip evaling
-        if (FLAGS.eval_interval != -1) and (i == FLAGS.offline_steps or i == 5 or i % FLAGS.eval_interval == 0):
+        if (FLAGS.eval_interval != -1) and (i == FLAGS.offline_steps or i % FLAGS.eval_interval == 0):
             # NOTE: during eval, the action chunk is executed fully (since horizon=5 and open_loop_horizon=5 as well!)
 
             all_eval_info = []

@@ -15,7 +15,7 @@ import math
 import jax
 import jax.numpy as jnp
 from collections import defaultdict
-from utils.datasets import Dataset
+from utils.datasets import Dataset, MultiDatasetWrapper
 
 import sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'libero'))
@@ -23,6 +23,8 @@ from libero.libero.envs.env_wrapper import ControlEnv, OffScreenRenderEnv
 from libero.libero.utils import get_libero_path
 from libero.libero.envs import SubprocVectorEnv
 from libero.libero import benchmark
+from tqdm import tqdm
+from libero.libero.benchmark.libero_suite_task_map import libero_task_map
 
 class DummyVectorEnv:
     """Synchronous vectorized environment (no multiprocessing). Use for notebook compatibility."""
@@ -196,7 +198,47 @@ def extract_all_libero_env_names_OLD(env_name, task_name):
 
 
 def extract_all_libero_env_names(env_name, task_name):
-    assert task_name == '', 'we no longer support task_name for eval time! all envs must be contained inside env_name!'
+    # assert task_name == '', 'we no longer support task_name for eval time! all envs must be contained inside env_name!'
+
+    # in the case of all_libero_90, we will only eval on a subset during evaluation
+    if env_name == "libero_90" and task_name != 'all':
+        envs = [
+        "KITCHEN_SCENE10-close_the_top_drawer_of_the_cabinet",
+        "KITCHEN_SCENE10-close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it",
+        
+       
+        "KITCHEN_SCENE3-put_the_frying_pan_on_the_stove",
+        "KITCHEN_SCENE3-put_the_moka_pot_on_the_stove",
+        
+
+        "KITCHEN_SCENE6-close_the_microwave",
+        "KITCHEN_SCENE6-put_the_yellow_and_white_mug_to_the_front_of_the_white_mug",
+
+     
+        "LIVING_ROOM_SCENE2-pick_up_the_alphabet_soup_and_put_it_in_the_basket",
+        "LIVING_ROOM_SCENE2-pick_up_the_butter_and_put_it_in_the_basket",
+        
+      
+        "LIVING_ROOM_SCENE6-put_the_red_mug_on_the_plate",
+        "LIVING_ROOM_SCENE6-put_the_white_mug_on_the_plate",
+
+        "STUDY_SCENE1-pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy",
+        "STUDY_SCENE1-pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy",
+       
+
+        "STUDY_SCENE4-pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf",
+        "STUDY_SCENE4-pick_up_the_book_on_the_left_and_place_it_on_top_of_the_shelf",
+
+    ]
+        envs = [f"libero_90-{x}" for x in envs]
+        env_name = "|".join(envs)
+    elif env_name == "libero_90" and task_name == 'all':
+        envs = libero_task_map["libero_90"]
+        envs = [f"libero_90-{x}" for x in envs]
+        env_name = "|".join(envs)
+
+
+
     env_strs = env_name.split('|')
     all_names = defaultdict(list)
     for env_str in env_strs:
@@ -293,8 +335,6 @@ def make_env(env_name, task_name, language_embedder, num_parallel_envs, use_hard
     for suite in all_env_names.keys():
         envs_to_eval.extend([env for env in all_env_names[suite]])    
     print(f" 😎😎😎 {len(envs_to_eval)=} Environments to evaluate: {envs_to_eval}")
-
-    env_list, names_to_return = [], []
     for i, env_name in enumerate(envs_to_eval):
         env =LiberoTopLevelEnvWrapper(
             env_name=env_name,
@@ -308,9 +348,7 @@ def make_env(env_name, task_name, language_embedder, num_parallel_envs, use_hard
             normalization_path=normalization_path,
             is_notebook=is_notebook,
         )
-        env_list.append(env)
-        names_to_return.append(env_name)
-    return env_list, names_to_return
+        yield env, env_name
 
 def _check_dataset_exists(env_name):
     # enforce that the dataset exists
@@ -337,15 +375,28 @@ def stack_dict_list(dict_list):
     keys = dict_list[0].keys()
     return {k: np.concatenate([d[k] for d in dict_list], axis=0) for k in keys}
 
-def get_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=None, augmentation_dict=None):
-    # data holders
+
+def get_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, batch_level_sampling, demo_nums_to_use_per_task=None, augmentation_dict=None):
+    if env_name == "libero_90":
+        envs_list = libero_task_map["libero_90"]
+        envs_list = [f"libero_90-{env}" for env in envs_list]
+    else:
+        envs_list = env_name.split('|')
+    datasets = []
+    for env_name in tqdm(envs_list, desc="Loading datasets", total=len(envs_list), position=0, leave=True):
+        datasets.append(get_single_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task, augmentation_dict))
+    return MultiDatasetWrapper(datasets, batch_level_sampling)
+
+
+def get_single_dataset(env, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=None, augmentation_dict=None, action_clip_eps=1e-5):
+    # data holders  
     observations = []
     actions = []
     next_observations = []
     terminals = []
     rewards = []
     masks = []
-    print(f"🤪🤪🤪 augmentation_reward: {augmentation_reward}")
+    # print(f"🤪🤪🤪 augmentation_reward: {augmentation_reward}")
 
     def process_task(rm_dataset, zero_out_rewards, target_task_name):
         # print(f"processing dataset for task {this_task_name}")
@@ -353,7 +404,7 @@ def get_dataset(env, env_name, task_name, language_embedder, augmentation_type, 
         inds = np.argsort([int(elem[5:]) for elem in demos])
         demos = [demos[i] for i in inds] # sort demos!
         if demo_nums_to_use_per_task is not None:
-            print(f"😎😎😎 ONLY using {demo_nums_to_use_per_task} demos for target_task: {target_task_name}")
+            # print(f"😎😎😎 ONLY using {demo_nums_to_use_per_task} demos for target_task: {target_task_name}")
             demos = [demos[i] for i in demo_nums_to_use_per_task]
 
         task_embedding = LANGUAGE_EMBEDDERS[language_embedder].encode(target_task_name)
@@ -361,6 +412,9 @@ def get_dataset(env, env_name, task_name, language_embedder, augmentation_type, 
         this_task_num_timesteps = 0
         for ep in demos:
             a = np.array(rm_dataset["data/{}/actions".format(ep)])
+            # clip actions
+            a = np.clip(a, -1 + action_clip_eps, 1 - action_clip_eps)
+
             this_task_num_timesteps += a.shape[0]
             obs, next_obs = {}, {}
             for k in keys_to_load:
@@ -416,14 +470,16 @@ def get_dataset(env, env_name, task_name, language_embedder, augmentation_type, 
             terminals.append(dones.astype(np.float32))
             masks.append(1.0 - dones.astype(np.float32))
             next_observations.append(next_obs)
-        return this_task_num_timesteps
+        
+        demo_nums_used_for_this_task = demo_nums_to_use_per_task if demo_nums_to_use_per_task is not None else list(range(len(demos)))
+        return this_task_num_timesteps, demo_nums_used_for_this_task
 
     # TODO(YY): still some issues w/ kitchen_scene1 and kitchen_scene10 in some regex matching locations...
     # such as distinct_scenes containing stuff it shouldn't here...
     # crawl through env_name directory, and add each task's demos
     libero_dataset_dir = os.path.join(os.path.dirname(os.getcwd()), 'datasets/raw_libero')
     all_libero_env_names = extract_all_libero_env_names(env_name, task_name)
-    print(f"🤪🤪🤪 all_libero_env_names: {all_libero_env_names}")
+    # print(f"🤪🤪🤪 all_libero_env_names: {all_libero_env_names}")
     distinct_scenes = {}
     for suite in all_libero_env_names.keys():
         if suite != "libero_90":
@@ -552,19 +608,19 @@ def none_augmentation(distinct_scenes, task_name, process_task_fn, libero_datase
         for scene in scenes:
             for task_name in distinct_scenes[suite][scene]:
                 # print(f"😈😈😈 {suite=}, {scene=}, {task_name=}")
-                _check_dataset_exists(task_name)
+                filepath = _check_dataset_exists(task_name)
                 
-                pattern = os.path.join(libero_dataset_dir, suite.upper(), f'{task_name.split("-")[1]}*.hdf5')
+                # pattern = os.path.join(libero_dataset_dir, suite.upper(), f'{task_name.split("-")[1]}*.hdf5')
                 # print(f"😈😈😈 {pattern=}", 'there are', len(sorted(glob.glob(pattern))), 'files for this suite + scene + task')
-                filepath = sorted(glob.glob(pattern))[0]
-                assert len(sorted(glob.glob(pattern))) == 1, f'there are {len(sorted(glob.glob(pattern)))} files for this suite + scene + task, but expected 1'                
+                # filepath = sorted(glob.glob(pattern))[0]
+                # assert len(sorted(glob.glob(pattern))) == 1, f'there are {len(sorted(glob.glob(pattern)))} files ({sorted(glob.glob(pattern))}) for this suite + scene + task, but expected 1'                
                 rm_dataset = h5py.File(filepath, "r")
                 lang_str = task_name.split("-")[1]
                 lang_str = lang_str if "SCENE" not in lang_str else extract_libero_task_name_only(lang_str)
                 zero_out_rewards = False
-                this_task_num_timesteps = process_task_fn(rm_dataset, zero_out_rewards, lang_str)
+                this_task_num_timesteps, demo_nums_used_for_this_task = process_task_fn(rm_dataset, zero_out_rewards, lang_str)
                 num_timesteps += this_task_num_timesteps
-                print(f"🥳🥳🥳 {j=} Dataset for {lang_str} has {this_task_num_timesteps}, and {zero_out_rewards=}, relabeled to {lang_str=}")
+                print(f"🥳🥳🥳 {j=} Dataset for {lang_str} has {this_task_num_timesteps} using demos = {demo_nums_used_for_this_task}, and {zero_out_rewards=}, relabeled to {lang_str=}")
                 j += 1
     print(f"the total size of the dataset is {num_timesteps}")
     return num_timesteps
@@ -1101,6 +1157,10 @@ class LiberoTopLevelEnvWrapper(gym.Env):
 
     def get_env_str(self):
         return self.env_str
+
+    def close(self):
+        self.vec_env.close()
+        self.offscreen_env.close()
 
 
 

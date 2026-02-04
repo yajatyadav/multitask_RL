@@ -78,6 +78,9 @@ def evaluate(
 
     task_embedding = env.get_task_embedding()
 
+    # to be efficient, we will still use the stats from video episodes in eval, they just won't be parallelized...
+    num_eval_episodes = num_eval_episodes - num_video_episodes
+
     assert num_eval_episodes % num_parallel_envs == 0, "num_eval_episodes must be divisible by num_parallel_envs"
     num_eval_iterations = num_eval_episodes // num_parallel_envs
     num_video_iterations = num_video_episodes
@@ -155,6 +158,7 @@ def evaluate(
                     rewards=reward[env_id],
                     dones=done[env_id],
                     infos=inf,
+                    language_embedding=task_embedding,
                 )
                 add_to(traj[env_id], this_trans)
 
@@ -189,12 +193,11 @@ def evaluate(
 
         # print("ending info dicts: ", info)
         # after this iter finishes, either add all inf dicts into stats, or add the render to the renders list
-        if i < num_eval_iterations:
-            for inf in info:
-                add_to(stats, flatten(inf))
-            for traj_i in traj.values():
-                trajs.append(traj_i)
-        else:
+        for inf in info:
+            add_to(stats, flatten(inf))
+        for traj_i in traj.values():
+            trajs.append(traj_i)
+        if should_render:
             renders.append(np.array(render))
     
     # aggregate stats over all iterations
