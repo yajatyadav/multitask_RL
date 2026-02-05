@@ -225,6 +225,8 @@ class Dataset(FrozenDict):
         batch_rewards = self['rewards'][all_idxs].reshape(batch_size, sequence_length, *self['rewards'].shape[1:])
         batch_masks = self['masks'][all_idxs].reshape(batch_size, sequence_length, *self['masks'].shape[1:])
         batch_terminals = self['terminals'][all_idxs].reshape(batch_size, sequence_length, *self['terminals'].shape[1:])
+
+        ##YY: fetch success as you would terminals
         
         # Calculate next_actions
         next_action_idxs = np.minimum(all_idxs + 1, self.size - 1)
@@ -261,7 +263,7 @@ class Dataset(FrozenDict):
         actions = batch_actions  # (batch_size, sequence_length, action_dim)
         next_actions = batch_next_actions  # (batch_size, sequence_length, action_dim)
         
-        return dict(
+        to_return =  dict(
             observations=jax.tree_util.tree_map(lambda arr: arr.copy(), data['observations']),
             full_observations=observations,
             actions=actions,
@@ -272,7 +274,11 @@ class Dataset(FrozenDict):
             next_observations=next_observations,
             next_actions=next_actions,
         )
-        
+
+        if 'successes' in self:
+            batch_successes = self['successes'][all_idxs].reshape(batch_size, sequence_length, *self['successes'].shape[1:])
+            to_return['successes'] = batch_successes        
+        return to_return
 
     def sample_sequence_old(self, batch_size, sequence_length, discount):
         idxs = np.random.randint(self.size - sequence_length + 1, size=batch_size)

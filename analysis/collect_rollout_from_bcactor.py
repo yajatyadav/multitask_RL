@@ -19,13 +19,14 @@ from agents.acbcflowactor import ACBCFlowActorAgent, get_config as get_actor_con
 from envs.env_utils import make_env_and_datasets
 from evaluation_libero import evaluate
 import argparse
-
+from pathlib import Path
 # save eval_info, trajs, renders
 import time
 import pickle
 import os
 import json
 import shutil
+import random
 
 
 def args_parser():
@@ -34,7 +35,8 @@ def args_parser():
     parser.add_argument('--actor_path', type=str)
     parser.add_argument('--env_name', type=str, help='a string that will control which environments to collect rollouts in.')
     parser.add_argument('--num_rollouts', type=int, help='number of rollouts to collect for each environment.')
-    
+    parser.add_argument('--gpus', nargs='+', type=int, default=[0], help='list of GPUs, e.g. --gpus 0 1 2')    
+
     parser.add_argument('--num_parallel_envs', type=int, default=5, help='number of parallel environments to use for evaluation.')    
     parser.add_argument('--task_name', type=str, default='', help='used in certain cases along with env_name to control how many tasks within a suite to collect rollouts in.')
     parser.add_argument('--save_dir', type=str, default='/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/bcactor_collected_rollouts/')   
@@ -74,13 +76,11 @@ def restore_actor_network(actor_restore_path, example_batch, horizon_length, act
 
 
 def main(args):
-    root_dir = os.path.join(args.save_dir, args.actor_name)
-    if root_dir.exists():
-        print(f"Root directory {root_dir} already exists. Deleting it...")
-        shutil.rmtree(root_dir)
-    os.makedirs(root_dir)
+    gpu_id = args.gpu_id
+    root_dir = Path(args.save_dir) / args.actor_name
+    root_dir.mkdir(parents=True, exist_ok=True)
     # dump args to a json file
-    with open(os.path.join(root_dir, 'args.json'), 'w') as f:
+    with open(root_dir / 'args.json', 'w') as f:
         json.dump(vars(args), f)
     
     # first, simply instnatiate the actor and collect rollouts
@@ -107,8 +107,8 @@ def main(args):
     actor_agent = restore_actor_network(args.actor_path, example_batch, horizon_length, actor_encoder, ACTOR_SEED)
 
     for (eval_env_j, eval_env_j_name) in eval_env:
-        save_dir = os.path.join(root_dir, eval_env_j_name)
-        os.makedirs(save_dir, exist_ok=True)
+        save_dir = Path(root_dir) / eval_env_j_name
+        save_dir.mkdir(parents=True, exist_ok=True)
         eval_info, trajs, renders = evaluate(
             agent=actor_agent,
             env=eval_env_j,
@@ -118,16 +118,56 @@ def main(args):
             num_parallel_envs=NUM_PARALLEL_ENVS,
             video_frame_skip=3,
         )
-        suffix = time.strftime("%Y%m%d_%H%M%S")
-        with open(os.path.join(save_dir, f'eval_info_{suffix}.pkl'), 'wb') as f:
+        #
+        suffix = 'gpu' + str(gpu_id) + '_' + time.strftime("%Y%m%d_%H%M%S") + str(
+            random.randint(0, 1000000)
+        )
+        with open(save_dir / f'eval_info_{suffix}.pkl', 'wb') as f:
             pickle.dump(eval_info, f)
-        with open(os.path.join(save_dir, f'trajs_{suffix}.pkl'), 'wb') as f:
+        with open(save_dir / f'trajs_{suffix}.pkl', 'wb') as f:
             pickle.dump(trajs, f)
-        with open(os.path.join(save_dir, f'renders_{suffix}.pkl'), 'wb') as f:
+        with open(save_dir / f'renders_{suffix}.pkl', 'wb') as f:
             pickle.dump(renders, f)
         print(f"Saved eval_info, trajs, renders to {save_dir}")
 
+def run_on_gpu(args, gpu_id, num_rollouts_for_this_gpu):
+    """Wrapper that sets GPU env vars before importing JAX, then runs main."""
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+    os.environ['EGL_DEVICE_ID'] = str(gpu_id)
+    os.environ['MUJOCO_EGL_DEVICE_ID'] = str(gpu_id)
+    os.environ['MUJOCO_GL'] = 'egl'
 
-if __name__ == "__main__":
-    args = args_parser()
+    os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+    os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
+    xla_flags = os.environ.get('XLA_FLAGS', '')
+    xla_flags += ' --xla_gpu_triton_gemm_any=True'
+    os.environ['XLA_FLAGS'] = xla_flags
+    
+    # Modify args for this process
+    args.num_rollouts = num_rollouts_for_this_gpu
+    args.actor_seed = args.actor_seed + gpu_id  # different seed per GPU
+    args.gpu_id = gpu_id
     main(args)
+
+import multiprocessing as mp
+if __name__ == "__main__":
+    mp.set_start_method('spawn', force=True)  # Required for CUDA
+    
+    args = args_parser()
+    gpus = args.gpus
+    
+    total_rollouts = args.num_rollouts
+    num_per_gpu = total_rollouts // len(gpus)
+    remainder = total_rollouts % len(gpus)
+    
+    processes = []
+    for i, gpu in enumerate(gpus):
+        # Distribute remainder across first few GPUs
+        rollouts_this_gpu = num_per_gpu + (1 if i < remainder else 0)
+        p = mp.Process(target=run_on_gpu, args=(copy.deepcopy(args), gpu, rollouts_this_gpu))
+        p.start()
+        processes.append(p)
+    
+    for p in processes:
+        p.join()    
+    print("All GPU processes finished.")
