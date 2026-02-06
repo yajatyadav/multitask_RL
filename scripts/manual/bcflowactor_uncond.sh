@@ -15,10 +15,10 @@ export WANDB_SERVICE_WAIT=86400
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 uv run main.py \
---exp_name_prefix=bcflowactor_livingroomscene1__alphabet_soup_and_ketchup_NO_LANG_CONDITIONING_50_demos_IMAGE_ \
+--exp_name_prefix=bcflowactor_all_libero_90__NO_LANG_CONDITIONING_50_demos_IMAGE_ \
 --run_group=bcflowactor_unconditional \
---env_name=libero_90-living_room_scene1 \
---task_name='pick_up_the_alphabet_soup_and_put_it_in_the_basket|pick_up_the_ketchup_and_put_it_in_the_basket' \
+--env_name=libero_90 \
+--task_name='' \
 --augmentation_type=none \
 --num_demos_to_use_per_task=50 \
 \
@@ -27,9 +27,10 @@ uv run main.py \
 --use_language=False \
 --use_mj_sim_state=False \
 \
---offline_steps=250000 \
+--offline_steps=500000 \
 --eval_interval=20000 \
 --save_interval=20000 \
+--num_parallel_envs=10 \
 \
 --horizon_length=5 \
 --agent=agents/acbcflowactor.py \

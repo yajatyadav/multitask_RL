@@ -29,6 +29,7 @@ import tqdm
 import numpy as np
 import math
 import random, json, pickle
+import time
 import wandb
 
 # Enable persistent compilation cache
@@ -61,10 +62,7 @@ import tqdm
 
 from pathlib import Path
 import shutil
-
-SEED = 0
-random.seed(SEED)
-np.random.seed(SEED)
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class TransClassifier_BERT(nn.Module):
     vision_encoder: nn.Module = None    
@@ -176,6 +174,352 @@ def stack_dict_list(dict_list):
         return {}
     keys = dict_list[0].keys()
     return {k: np.concatenate([d[k] for d in dict_list], axis=0) for k in keys}
+
+
+def load_pickle_file(path):
+    """Load a single pickle file."""
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+
+
+def load_single_task_thread(args):
+    """
+    Load a single task - designed for ThreadPoolExecutor.
+    Returns Dataset objects directly (no serialization needed with threads).
+    Uses train_fraction and val_fraction to split demos so that train and val
+    have equal proportion of success (max_rew==1) and failure (max_rew==0) trajectories.
+    """
+    task_dir, task_name, train_fraction, val_fraction, action_clip_eps, seed = args
+    
+    assert abs((train_fraction + val_fraction) - 1.0) < 1e-6, (
+        f"train_fraction + val_fraction must equal 1.0, got {train_fraction} + {val_fraction}"
+    )
+    
+    pkl_files = sorted(Path(task_dir).glob('trajs_*.pkl'))
+    if not pkl_files:
+        return task_name, None, None, f"No pickle files for {task_name}"
+    print(f"Loading {len(pkl_files)} pickle files for {task_name}")
+    
+    # Load all pickle files
+    all_datasets = [load_pickle_file(p) for p in pkl_files]
+    
+    t0 = time.perf_counter()
+    # First pass: process all demos and classify by success (max_rew==1) vs failure (max_rew==0)
+    success_episodes = []  # list of (dataset_idx, ep_idx, timesteps)
+    failure_episodes = []
+    
+    for dataset_idx, dataset in enumerate(all_datasets):
+        for ep_idx, ep in enumerate(dataset):
+            timesteps = len(ep['actions'])
+            rew_list = ep['rewards']
+            assert len(rew_list) == timesteps, f"Reward list length {len(rew_list)} does not match timesteps {timesteps}"
+            max_rew = max(rew_list)
+            is_success = (max_rew == 1)
+            entry = (dataset_idx, ep_idx, timesteps)
+            if is_success:
+                success_episodes.append(entry)
+            else:
+                failure_episodes.append(entry)
+    
+    # Deterministic shuffle using provided seed
+    rng = random.Random(seed)
+    rng.shuffle(success_episodes)
+    rng.shuffle(failure_episodes)
+    
+    # Split each group by fractions: train_fraction to train, val_fraction to val
+    n_success = len(success_episodes)
+    n_failure = len(failure_episodes)
+    n_train_success = int(round(n_success * train_fraction))
+    n_train_failure = int(round(n_failure * train_fraction))
+    
+    train_successes = success_episodes[:n_train_success]
+    val_successes = success_episodes[n_train_success:]
+    train_failures = failure_episodes[:n_train_failure]
+    val_failures = failure_episodes[n_train_failure:]
+    
+    train_demos = train_successes + train_failures
+    val_demos = val_successes + val_failures
+    
+    train_total = sum(ts for (_, _, ts) in train_demos)
+    val_total = sum(ts for (_, _, ts) in val_demos)
+    elapsed = time.perf_counter() - t0
+    print(f"  [{task_name}] Built train/val demo lists in {elapsed:.3f}s ({len(train_demos)} train, {len(val_demos)} val)")
+    # print succ/fail counts given to train and val sets
+    print(f"  [{task_name}] Train Successes: {len(train_successes)}, Train Failures: {len(train_failures)}, Val Successes: {len(val_successes)}, Val Failures: {len(val_failures)}")
+    # print succes rate in rollout data
+    print(f"  [{task_name}] Rollout Success Rate: {len(success_episodes) / (len(success_episodes) + len(failure_episodes))}")
+    
+    if train_total == 0:
+        return task_name, None, None, f"No training data for {task_name}"
+    if val_total == 0:
+        return task_name, None, None, f"No validation data for {task_name}"
+    
+    # Get shapes from first episode
+    first_ep = all_datasets[0][0]
+    first_obs = first_ep['observations'][0]
+    obs_keys = list(first_obs.keys())
+    action_dim = len(first_ep['actions'][0])
+    
+    def fill_arrays(demos_info, total_timesteps):
+        """Pre-allocate and fill arrays for a set of demos."""
+        obs_arrays = {}
+        next_obs_arrays = {}
+        for k in obs_keys:
+            shape = first_obs[k].shape
+            dtype = first_obs[k].dtype
+            obs_arrays[k] = np.empty((total_timesteps, *shape), dtype=dtype)
+            next_obs_arrays[k] = np.empty((total_timesteps, *shape), dtype=dtype)
+        
+        actions = np.empty((total_timesteps, action_dim), dtype=np.float32)
+        rewards = np.empty((total_timesteps,), dtype=np.float32)
+        dones = np.empty((total_timesteps,), dtype=np.float32)
+        masks = np.empty((total_timesteps,), dtype=np.float32)
+        successes = np.empty((total_timesteps,), dtype=np.float32)
+        
+        offset = 0
+        for dataset_idx, ep_idx, timesteps in demos_info:
+            ep = all_datasets[dataset_idx][ep_idx]
+            end = offset + timesteps
+            
+            obs_list = ep['observations']
+            next_obs_list = ep['next_observations']
+            
+            for k in obs_keys:
+                arr = obs_arrays[k]
+                next_arr = next_obs_arrays[k]
+                for t, (o, no) in enumerate(zip(obs_list, next_obs_list)):
+                    arr[offset + t] = o[k]
+                    next_arr[offset + t] = no[k]
+            
+            act_list = ep['actions']
+            rew_list = ep['rewards']
+            done_list = ep['dones']
+            
+            for t in range(timesteps):
+                actions[offset + t] = act_list[t]
+                rewards[offset + t] = rew_list[t]
+                dones[offset + t] = done_list[t]
+            
+            max_rew = max(rew_list)
+            successes[offset:end] = max_rew
+            offset = end
+        
+        np.clip(actions, -1 + action_clip_eps, 1 - action_clip_eps, out=actions)
+        np.subtract(1.0, dones, out=masks)
+        
+        return obs_arrays, next_obs_arrays, actions, rewards, dones, masks, successes
+    
+    # Fill train arrays
+    train_obs, train_next_obs, train_actions, train_rewards, train_dones, train_masks, train_successes = \
+        fill_arrays(train_demos, train_total)
+    
+    # Fill val arrays  
+    val_obs, val_next_obs, val_actions, val_rewards, val_dones, val_masks, val_successes = \
+        fill_arrays(val_demos, val_total)
+    
+    # Create Dataset objects directly in thread (shares memory with main process)
+    train_ds = Dataset.create(
+        observations=train_obs,
+        next_observations=train_next_obs,
+        actions=train_actions,
+        rewards=train_rewards,
+        terminals=train_dones,
+        masks=train_masks,
+        successes=train_successes,
+    )
+    
+    val_ds = Dataset.create(
+        observations=val_obs,
+        next_observations=val_next_obs,
+        actions=val_actions,
+        rewards=val_rewards,
+        terminals=val_dones,
+        masks=val_masks,
+        successes=val_successes,
+    )
+    
+    return task_name, train_ds, val_ds, None
+
+
+# def load_single_task_hdf5(args):
+#     """
+#     Load a single task from HDF5 file - designed for ThreadPoolExecutor.
+#     HDF5 format is much faster since data is already in array form.
+#     """
+#     task_dir, task_name, train_demo_nums, val_demo_nums, action_clip_eps = args
+    
+#     hdf5_path = Path(task_dir) / "demos.hdf5"
+#     if not hdf5_path.exists():
+#         return task_name, None, None, f"No demos.hdf5 for {task_name}"
+    
+#     train_indices = set(train_demo_nums)
+#     val_indices = set(val_demo_nums)
+    
+#     with h5py.File(hdf5_path, 'r') as hdf_file:
+#         data_group = hdf_file['data']
+#         num_demos = hdf_file.attrs['num_demos']
+        
+#         # First pass: count timesteps for train/val
+#         train_demos = []
+#         val_demos = []
+#         train_total = 0
+#         val_total = 0
+        
+#         for demo_idx in range(num_demos):
+#             if demo_idx not in train_indices and demo_idx not in val_indices:
+#                 continue
+#             demo_key = f'demo_{demo_idx}'
+#             if demo_key not in data_group:
+#                 continue
+#             timesteps = data_group[demo_key]['actions'].shape[0]
+#             if demo_idx in train_indices:
+#                 train_total += timesteps
+#                 train_demos.append((demo_key, timesteps))
+#             elif demo_idx in val_indices:
+#                 val_total += timesteps
+#                 val_demos.append((demo_key, timesteps))
+        
+#         if train_total == 0:
+#             return task_name, None, None, f"No training data for {task_name}"
+#         if val_total == 0:
+#             return task_name, None, None, f"No validation data for {task_name}"
+        
+#         # Get shapes from first demo
+#         first_demo = data_group['demo_0']
+#         obs_keys = list(first_demo['obs'].keys())
+#         action_dim = first_demo['actions'].shape[1]
+        
+#         def fill_arrays_hdf5(demos_info, total_timesteps):
+#             """Pre-allocate and fill arrays from HDF5 data."""
+#             # Get shapes/dtypes from first demo
+#             first_demo_key = demos_info[0][0]
+#             fd = data_group[first_demo_key]
+            
+#             obs_arrays = {}
+#             next_obs_arrays = {}
+#             for k in obs_keys:
+#                 shape = fd[f'obs/{k}'].shape[1:]  # Remove batch dim
+#                 dtype = fd[f'obs/{k}'].dtype
+#                 obs_arrays[k] = np.empty((total_timesteps, *shape), dtype=dtype)
+#                 next_obs_arrays[k] = np.empty((total_timesteps, *shape), dtype=dtype)
+            
+#             actions = np.empty((total_timesteps, action_dim), dtype=np.float32)
+#             rewards = np.empty((total_timesteps,), dtype=np.float32)
+#             dones = np.empty((total_timesteps,), dtype=np.float32)
+#             masks = np.empty((total_timesteps,), dtype=np.float32)
+#             successes = np.empty((total_timesteps,), dtype=np.float32)
+            
+#             offset = 0
+#             for demo_key, timesteps in demos_info:
+#                 demo = data_group[demo_key]
+#                 end = offset + timesteps
+                
+#                 # Direct array copy from HDF5 (very fast!)
+#                 for k in obs_keys:
+#                     obs_arrays[k][offset:end] = demo[f'obs/{k}'][:]
+#                     next_obs_arrays[k][offset:end] = demo[f'next_obs/{k}'][:]
+                
+#                 actions[offset:end] = demo['actions'][:]
+#                 rewards[offset:end] = demo['rewards'][:]
+#                 dones[offset:end] = demo['dones'][:].astype(np.float32)
+                
+#                 max_rew = rewards[offset:end].max()
+#                 successes[offset:end] = max_rew
+#                 offset = end
+            
+#             np.clip(actions, -1 + action_clip_eps, 1 - action_clip_eps, out=actions)
+#             np.subtract(1.0, dones, out=masks)
+            
+#             return obs_arrays, next_obs_arrays, actions, rewards, dones, masks, successes
+        
+#         # Fill train arrays
+#         train_obs, train_next_obs, train_actions, train_rewards, train_dones, train_masks, train_successes = \
+#             fill_arrays_hdf5(train_demos, train_total)
+        
+#         # Fill val arrays
+#         val_obs, val_next_obs, val_actions, val_rewards, val_dones, val_masks, val_successes = \
+#             fill_arrays_hdf5(val_demos, val_total)
+    
+#     # Create Dataset objects (outside the h5py context)
+#     train_ds = Dataset.create(
+#         observations=train_obs,
+#         next_observations=train_next_obs,
+#         actions=train_actions,
+#         rewards=train_rewards,
+#         terminals=train_dones,
+#         masks=train_masks,
+#         successes=train_successes,
+#     )
+    
+#     val_ds = Dataset.create(
+#         observations=val_obs,
+#         next_observations=val_next_obs,
+#         actions=val_actions,
+#         rewards=val_rewards,
+#         terminals=val_dones,
+#         masks=val_masks,
+#         successes=val_successes,
+#     )
+    
+#     return task_name, train_ds, val_ds, None
+
+
+def load_all_tasks_parallel(rollouts_dir, task_names, train_fraction, val_fraction,
+                            seed, num_workers=16, action_clip_eps=1e-5, data_format='pickle'):
+    """
+    Load all tasks in parallel using ThreadPoolExecutor.
+    
+    Args:
+        data_format: 'pickle' or 'hdf5'
+        seed: used for deterministic shuffle when splitting success/failure into train/val
+    """
+    task_args = [
+        (rollouts_dir / task_name, task_name, train_fraction, val_fraction, action_clip_eps, seed)
+        for task_name in task_names
+    ]
+    
+    # Choose loader based on format
+    # HDF5 with gzip is CPU-bound (decompression), so fewer workers helps
+    if data_format == 'hdf5':
+        raise ValueError("HDF5 format is not supported yet")
+        loader_fn = load_single_task_hdf5
+        effective_workers = min(num_workers, 8)  # Limit for CPU-bound decompression
+        print(f"Loading {len(task_names)} tasks from HDF5 with {effective_workers} threads...")
+    else:
+        loader_fn = load_single_task_thread
+        effective_workers = num_workers
+        print(f"Loading {len(task_names)} tasks from pickle with {effective_workers} threads...")
+    
+    train_datasets = {}
+    val_datasets = {}
+    errors = []
+    completed = 0
+    
+    with ThreadPoolExecutor(max_workers=effective_workers) as executor:
+        futures = {executor.submit(loader_fn, arg): arg[1] for arg in task_args}
+        
+        for future in as_completed(futures):
+            task_name = futures[future]
+            completed += 1
+            try:
+                name, train_ds, val_ds, error = future.result()
+                if error:
+                    errors.append(error)
+                    print(f"[{completed}/{len(task_names)}] Error loading {task_name}: {error}")
+                else:
+                    train_datasets[name] = train_ds
+                    val_datasets[name] = val_ds
+                    if completed % 10 == 0 or completed == len(task_names):
+                        print(f"[{completed}/{len(task_names)}] Loaded {len(train_datasets)} tasks...")
+            except Exception as e:
+                errors.append(str(e))
+                print(f"[{completed}/{len(task_names)}] Exception loading {task_name}: {e}")
+                # re-raise the exception
+                raise e
+    
+    print(f"Successfully loaded {len(train_datasets)} tasks, {len(errors)} errors")
+    return train_datasets, val_datasets
+
 
 def get_tasks_from_env(env_name):
     if env_name == 'libero_90':
@@ -315,126 +659,126 @@ def get_tasks_from_env(env_name):
     
 #     return train_dataset, val_dataset
 
-def process_task_hdf5(task_dir, task_str, train_demo_nums, val_demo_nums, action_clip_eps=1e-5):
-    """
-    Fast version that reads from a single HDF5 file per task.
+# def process_task_hdf5(task_dir, task_str, train_demo_nums, val_demo_nums, action_clip_eps=1e-5):
+#     """
+#     Fast version that reads from a single HDF5 file per task.
     
-    Args:
-        task_dir: Path to task directory containing demos.hdf5
-        task_str: Task name for logging
-        train_demo_nums: List of demo indices for training
-        val_demo_nums: List of demo indices for validation
-    """
-    train_observations = []
-    train_actions = []
-    train_next_observations = []
-    train_terminals = []
-    train_rewards = []
-    train_masks = []
-    train_successes = []
+#     Args:
+#         task_dir: Path to task directory containing demos.hdf5
+#         task_str: Task name for logging
+#         train_demo_nums: List of demo indices for training
+#         val_demo_nums: List of demo indices for validation
+#     """
+#     train_observations = []
+#     train_actions = []
+#     train_next_observations = []
+#     train_terminals = []
+#     train_rewards = []
+#     train_masks = []
+#     train_successes = []
 
-    val_observations = []
-    val_actions = []
-    val_next_observations = []
-    val_terminals = []
-    val_rewards = []
-    val_masks = []
-    val_successes = []
+#     val_observations = []
+#     val_actions = []
+#     val_next_observations = []
+#     val_terminals = []
+#     val_rewards = []
+#     val_masks = []
+#     val_successes = []
 
-    num_train_timesteps = 0
-    num_val_timesteps = 0
+#     num_train_timesteps = 0
+#     num_val_timesteps = 0
     
-    train_indices = set(train_demo_nums)
-    val_indices = set(val_demo_nums)
+#     train_indices = set(train_demo_nums)
+#     val_indices = set(val_demo_nums)
     
-    # Read from single HDF5 file
-    hdf5_path = Path(task_dir) / "demos.hdf5"
+#     # Read from single HDF5 file
+#     hdf5_path = Path(task_dir) / "demos.hdf5"
     
-    if not hdf5_path.exists():
-        raise FileNotFoundError(f"HDF5 file not found: {hdf5_path}")
+#     if not hdf5_path.exists():
+#         raise FileNotFoundError(f"HDF5 file not found: {hdf5_path}")
     
-    with h5py.File(hdf5_path, 'r') as hdf_file:
-        data_group = hdf_file['data']
-        total_demos = hdf_file.attrs['num_demos']
+#     with h5py.File(hdf5_path, 'r') as hdf_file:
+#         data_group = hdf_file['data']
+#         total_demos = hdf_file.attrs['num_demos']
         
-        # Process each demo
-        for demo_idx in range(total_demos):
-            if demo_idx not in train_indices and demo_idx not in val_indices:
-                continue
+#         # Process each demo
+#         for demo_idx in range(total_demos):
+#             if demo_idx not in train_indices and demo_idx not in val_indices:
+#                 continue
             
-            demo_key = f'demo_{demo_idx}'
-            if demo_key not in data_group:
-                print(f"Warning: {demo_key} not found in {hdf5_path}")
-                continue
+#             demo_key = f'demo_{demo_idx}'
+#             if demo_key not in data_group:
+#                 print(f"Warning: {demo_key} not found in {hdf5_path}")
+#                 continue
                 
-            demo = data_group[demo_key]
+#             demo = data_group[demo_key]
             
-            # Load observations (already in dict of arrays format!)
-            obs_f32 = {k: np.array(demo[f'obs/{k}']).astype(np.float32) 
-                      for k in demo['obs'].keys()}
-            next_obs_f32 = {k: np.array(demo[f'next_obs/{k}']).astype(np.float32) 
-                           for k in demo['next_obs'].keys()}
+#             # Load observations (already in dict of arrays format!)
+#             obs_f32 = {k: np.array(demo[f'obs/{k}']).astype(np.float32) 
+#                       for k in demo['obs'].keys()}
+#             next_obs_f32 = {k: np.array(demo[f'next_obs/{k}']).astype(np.float32) 
+#                            for k in demo['next_obs'].keys()}
             
-            # Load other arrays
-            a = np.clip(
-                np.array(demo['actions']).astype(np.float32),
-                -1 + action_clip_eps,
-                1 - action_clip_eps
-            )
-            r = np.array(demo['rewards']).astype(np.float32)
-            dones = np.array(demo['dones']).astype(np.float32)
-            masks_f32 = 1.0 - dones
-            success = np.full(a.shape[0], np.max(r), dtype=np.float32)
+#             # Load other arrays
+#             a = np.clip(
+#                 np.array(demo['actions']).astype(np.float32),
+#                 -1 + action_clip_eps,
+#                 1 - action_clip_eps
+#             )
+#             r = np.array(demo['rewards']).astype(np.float32)
+#             dones = np.array(demo['dones']).astype(np.float32)
+#             masks_f32 = 1.0 - dones
+#             success = np.full(a.shape[0], np.max(r), dtype=np.float32)
             
-            # Append to appropriate dataset
-            if demo_idx in train_indices:
-                num_train_timesteps += a.shape[0]
-                train_observations.append(obs_f32)
-                train_actions.append(a)
-                train_rewards.append(r)
-                train_next_observations.append(next_obs_f32)
-                train_terminals.append(dones)
-                train_masks.append(masks_f32)
-                train_successes.append(success)
-            else:
-                num_val_timesteps += a.shape[0]
-                val_observations.append(obs_f32)
-                val_actions.append(a)
-                val_rewards.append(r)
-                val_next_observations.append(next_obs_f32)
-                val_terminals.append(dones)
-                val_masks.append(masks_f32)
-                val_successes.append(success)
+#             # Append to appropriate dataset
+#             if demo_idx in train_indices:
+#                 num_train_timesteps += a.shape[0]
+#                 train_observations.append(obs_f32)
+#                 train_actions.append(a)
+#                 train_rewards.append(r)
+#                 train_next_observations.append(next_obs_f32)
+#                 train_terminals.append(dones)
+#                 train_masks.append(masks_f32)
+#                 train_successes.append(success)
+#             else:
+#                 num_val_timesteps += a.shape[0]
+#                 val_observations.append(obs_f32)
+#                 val_actions.append(a)
+#                 val_rewards.append(r)
+#                 val_next_observations.append(next_obs_f32)
+#                 val_terminals.append(dones)
+#                 val_masks.append(masks_f32)
+#                 val_successes.append(success)
     
-    print(f"Task {task_str}: Train timesteps: {num_train_timesteps}, Val timesteps: {num_val_timesteps}")
+#     print(f"Task {task_str}: Train timesteps: {num_train_timesteps}, Val timesteps: {num_val_timesteps}")
     
-    # Handle empty datasets
-    if not train_observations:
-        raise ValueError(f"No training data found for task {task_str}")
-    if not val_observations:
-        raise ValueError(f"No validation data found for task {task_str}")
+#     # Handle empty datasets
+#     if not train_observations:
+#         raise ValueError(f"No training data found for task {task_str}")
+#     if not val_observations:
+#         raise ValueError(f"No validation data found for task {task_str}")
     
-    train_dataset = Dataset.create(
-        observations=stack_dict_list(train_observations),
-        next_observations=stack_dict_list(train_next_observations),
-        actions=np.concatenate(train_actions, axis=0),
-        rewards=np.concatenate(train_rewards, axis=0),
-        terminals=np.concatenate(train_terminals, axis=0),
-        masks=np.concatenate(train_masks, axis=0),
-        successes=np.concatenate(train_successes, axis=0),
-    )
+#     train_dataset = Dataset.create(
+#         observations=stack_dict_list(train_observations),
+#         next_observations=stack_dict_list(train_next_observations),
+#         actions=np.concatenate(train_actions, axis=0),
+#         rewards=np.concatenate(train_rewards, axis=0),
+#         terminals=np.concatenate(train_terminals, axis=0),
+#         masks=np.concatenate(train_masks, axis=0),
+#         successes=np.concatenate(train_successes, axis=0),
+#     )
     
-    val_dataset = Dataset.create(
-        observations=stack_dict_list(val_observations),
-        next_observations=stack_dict_list(val_next_observations),
-        actions=np.concatenate(val_actions, axis=0),
-        rewards=np.concatenate(val_rewards, axis=0),
-        terminals=np.concatenate(val_terminals, axis=0),
-        masks=np.concatenate(val_masks, axis=0),
-        successes=np.concatenate(val_successes, axis=0),
-    )
+#     val_dataset = Dataset.create(
+#         observations=stack_dict_list(val_observations),
+#         next_observations=stack_dict_list(val_next_observations),
+#         actions=np.concatenate(val_actions, axis=0),
+#         rewards=np.concatenate(val_rewards, axis=0),
+#         terminals=np.concatenate(val_terminals, axis=0),
+#         masks=np.concatenate(val_masks, axis=0),
+#         successes=np.concatenate(val_successes, axis=0),
+#     )
     
-    return train_dataset, val_dataset
+#     return train_dataset, val_dataset
 
 def get_loss_fn(network, batch, train, rng):    
     def loss_fn(grad_params):
@@ -478,8 +822,9 @@ def accuracy(network, batch, thresh=0.0):
     # Ensure shapes match - flatten both to 1D
     logits = logits.squeeze()
     targets = targets.squeeze()
-    
-    num_correct = jnp.sum(((logits > thresh) & (targets == 1)) | ((logits < -thresh) & (targets == 0)))
+
+    predictions = (logits >= 0).astype(jnp.float32)  # Use >= instead of >
+    num_correct = jnp.sum(predictions == targets)
     num_total = logits.shape[0]   
     return num_correct, num_total
     
@@ -493,8 +838,21 @@ def update(network, batch, rng):
     return network, rng, info
 
 def main(flags):
-    # Initialize wandb
-    run_name = f"{flags.run_prefix}_h{flags.horizon_length}_drop{flags.p_drop_state}_train{flags.num_train_demos}"
+    SEED = flags.seed
+    random.seed(SEED)
+    np.random.seed(SEED)
+    
+    # make save_dir
+    time_suffix = time.strftime("%Y%m%d_%H%M%S")
+    run_name = f"{flags.run_prefix}_h{flags.horizon_length}_drop{flags.p_drop_state}_lr{flags.lr}_train{flags.train_fraction}_seed{SEED}_{time_suffix}"
+    save_dir = Path(flags.save_dir) / flags.wandb_group / run_name
+    if save_dir.exists():
+        print(f"Saving classifier to {save_dir}, but it already exists. Deleting it...")
+        shutil.rmtree(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    with open(save_dir / 'flags.json', 'w') as f:
+        json.dump(flags.__dict__, f)
+    
     wandb.init(
         entity="yajatyadav",
         project="multitask_RL",
@@ -504,61 +862,36 @@ def main(flags):
             "env_name": flags.env_name,
             "horizon_length": flags.horizon_length,
             "p_drop_state": flags.p_drop_state,
-            "num_train_demos": flags.num_train_demos,
-            "num_val_demos": flags.num_val_demos,
-            "language_embedder": flags.language_embedder,
-            "batch_level_sampling": flags.batch_level_sampling,
+            "lr": flags.lr,
+            "train_fraction": flags.train_fraction,
+            "val_fraction": flags.val_fraction,
             "seed": SEED,
+            "num_workers": flags.num_workers,
+            "data_format": flags.data_format,
+            "num_epochs": flags.num_epochs,
         }
     )
-    
-    # make save_dir
-    save_dir = Path(flags.save_dir) / run_name
-    if save_dir.exists():
-        print(f"Saving classifier to {save_dir}, but it already exists. Deleting it...")
-        shutil.rmtree(save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
-    with open(save_dir / 'flags.json', 'w') as f:
-        json.dump(flags.__dict__, f)
 
     
     rollouts = Path(flags.rollouts_dir)
     task_names = get_tasks_from_env(flags.env_name)
-    # task_names = []
-    # for file in os.listdir(rollouts): # only iterate over directories
-    #     if os.path.isdir(rollouts / file) and file in tasks_for_this_env:
-    #         if (rollouts / file / 'demos.hdf5').exists():
-    #             task_names.append(file)
-    #         else:
-    #             print(f"Warning: {file} does not have a demos.hdf5 file. Skipping...")
-    # print(f"task_names whose rollouts to train on: {task_names}")
-    # task_trajs = {}
-    # for task in tqdm.tqdm(task_names, total=len(task_names)):
-    #     task_trajs[task] = []
-    #     # pattern match all trajs_*.pkl files
-    #     trajs = list(Path(rollouts / task).glob('trajs_*.pkl'))
-    #     task_trajs[task].extend(trajs)
+    
+    # train_demo_nums = list(range(0, flags.num_train_demos))
+    # val_demo_nums = list(range(flags.num_train_demos, flags.num_train_demos + flags.num_val_demos))
 
-    train_datasets, val_datasets = {}, {}
-    train_demo_nums = list(range(0, flags.num_train_demos))
-    val_demo_nums = list(range(flags.num_train_demos, flags.num_train_demos + flags.num_val_demos))
-
-    for task in tqdm.tqdm(task_names, total=len(task_names), desc="Processing tasks", position=0, leave=True):
-        task_dir = rollouts / task
-        try:
-            t_ds, v_ds = process_task_hdf5(task_dir, task, train_demo_nums, val_demo_nums)
-            train_datasets[task] = t_ds
-            val_datasets[task] = v_ds
-        except Exception as e:
-            print(f"Error processing task {task}: {e}")
-            import traceback
-            traceback.print_exc()
-            continue
+    # Use parallel loading for speed
+    load_start = time.time()
+    train_datasets, val_datasets = load_all_tasks_parallel(
+        rollouts, task_names, flags.train_fraction, flags.val_fraction,
+        SEED,
+        num_workers=flags.num_workers,
+        data_format=flags.data_format
+    )
+    load_time = time.time() - load_start
+    print(f"Dataset loading completed in {load_time:.1f}s ({load_time/len(task_names):.2f}s per task)")
     
     if not train_datasets:
         raise ValueError("No training datasets loaded! Check your data directory.")
-    
-    print(f"Successfully loaded {len(train_datasets)} tasks")
     train_dataset = MultiDatasetWrapper(list(train_datasets.values()), batch_level_sampling=True)
 
 
@@ -569,7 +902,7 @@ def main(flags):
     encoder = 'image_only_tiny'
     embed_dim = encoder_modules[encoder]().mlp_hidden_dims[-1]
     layer_norm = True
-    lr  = 3e-4
+    lr  = flags.lr
     p_drop_state = flags.p_drop_state
 
     example_batch = train_dataset.sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
@@ -617,18 +950,20 @@ def main(flags):
 
     # start the main train loop!
     train_losses, val_losses = [], []
-    per_task_train_losses, per_task_val_losses = defaultdict(list), defaultdict(list)
+    per_task_val_losses = defaultdict(list)
     val_accuracies = []
     per_task_val_accuracies = defaultdict(list)
     grad_max, grad_min, grad_norm = [], [], []
-    per_task_grad_max, per_task_grad_min, per_task_grad_norm = defaultdict(list), defaultdict(list), defaultdict(list)
 
 
     print(train_dataset.size)
-    NUM_EPOCHS = 10
-    VAL_INTERVAL = 100  # INCREASED FROM 25 - less frequent validation
-    NUM_VAL_TASKS = 10  # ONLY VALIDATE ON 10 RANDOM TASKS PER STEP
-    SAVE_EVERY = train_dataset.size // (2 * batch_size)  # save roughly every half epoch
+    NUM_EPOCHS = flags.num_epochs
+    VAL_INTERVAL = flags.val_interval  # INCREASED FROM 25 - less frequent validation
+    NUM_VAL_TASKS = flags.num_val_tasks  # ONLY VALIDATE ON 10 RANDOM TASKS PER STEP
+    if flags.save_every is None:
+        SAVE_EVERY = train_dataset.size // (2 * batch_size)  # save roughly every half epoch
+    else:
+        SAVE_EVERY = flags.save_every
     num_train_steps = math.ceil(NUM_EPOCHS * train_dataset.size / batch_size)
     print(f"num_train_steps: {num_train_steps}")
     
@@ -654,6 +989,14 @@ def main(flags):
         grad_max.append((step, info['grad/max']))
         grad_min.append((step, info['grad/min']))
         grad_norm.append((step, info['grad/norm']))
+
+        if step == 1:
+            targets = batch['successes'][..., 0]
+            print(f"Target mean: {np.mean(targets)}, shape: {targets.shape}")
+            print(f"Actions norm: {np.mean(np.linalg.norm(batch['actions'], axis=-1))}")
+            masks = batch['masks']
+            print(f"Mask mean: {np.mean(masks)} (fraction non-terminal)")
+            print(f"Loss value: {info['classifier_loss']}")
         
         # Log training metrics to wandb - LESS FREQUENTLY
         if (step == 1 or step % VAL_INTERVAL == 0 or step == num_train_steps):
@@ -669,9 +1012,13 @@ def main(flags):
             val_losses_this_iter, val_accuracies_this_iter = [], []
             val_log = {}  # Batch all val logs together
 
-            # ONLY VALIDATE ON A SUBSET OF TASKS
-            sampled_val_tasks = random.sample(val_task_names, min(NUM_VAL_TASKS, len(val_task_names)))
-            
+            # ONLY VALIDATE ON A SUBSET OF TASKS, if len(val_task_names) < NUM_VAL_TASKS, validate on all tasks
+            if len(val_task_names) < NUM_VAL_TASKS:
+                sampled_val_tasks = val_task_names
+            else:
+                sampled_val_tasks = random.sample(val_task_names, NUM_VAL_TASKS)
+            # print(f"Validating on {len(sampled_val_tasks)} tasks: {sampled_val_tasks}")
+
             for task_name in sampled_val_tasks:
                 val_dataset = val_datasets[task_name]
                 val_batch = val_dataset.sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
@@ -707,7 +1054,7 @@ def main(flags):
             val_log['step'] = step
             
             # SINGLE WANDB LOG CALL FOR ALL METRICS
-            wandb.log({**train_log, **val_log})
+            wandb.log({**train_log, **val_log}, step=step)
 
         # save every SAVE_EVERY steps or at the end of training
         if (SAVE_EVERY > 0 and (step % SAVE_EVERY == 0)) or (step == num_train_steps):
@@ -738,15 +1085,27 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, required=True)
     parser.add_argument('--run_prefix', type=str, required=True)
+    parser.add_argument('--wandb_group', type=str, default='success_classifier_SINGLETASK_')
     
     parser.add_argument('--save_dir', type=str, required=False, default='/home/yajatyadav/multitask_reinforcement_learning/checkpoints/CLASSIFIERS/')
-    parser.add_argument('--rollouts_dir', type=str, required=False, default='/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/bcactor_collected_rollouts/bcflow_libero_90_25_demo_ckpt_80k_hdf5')
+    parser.add_argument('--rollouts_dir', type=str, required=False, default='/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/bcactor_collected_rollouts/bcflow_libero_90_25_demo_ckpt_80k')
     parser.add_argument('--language_embedder', type=str, default='bert')
     parser.add_argument('--batch_level_sampling', type=bool, default=True)
     parser.add_argument('--horizon_length', type=int, default=5)
     parser.add_argument('--p_drop_state', type=float, default=0.5)
     parser.add_argument('--num_train_demos', type=int, default=50)
     parser.add_argument('--num_val_demos', type=int, default=10)
-    parser.add_argument('--wandb_group', type=str, default='success_classifier_training')
+    parser.add_argument('--num_workers', type=int, default=16, help='Number of parallel workers for data loading')
+    parser.add_argument('--data_format', type=str, default='pickle', choices=['pickle', 'hdf5'],
+                        help='Data format: pickle or hdf5')
+   
+    parser.add_argument('--num_epochs', type=int, default=10)
+    parser.add_argument('--lr', type=float, default=3e-4)
+    parser.add_argument('--train_fraction', type=float, default=0.8)
+    parser.add_argument('--val_fraction', type=float, default=0.2)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--save_every', type=int, default=None)
+    parser.add_argument('--val_interval', type=int, default=100)
+    parser.add_argument('--num_val_tasks', type=int, default=10)
     flags = parser.parse_args()
     main(flags)

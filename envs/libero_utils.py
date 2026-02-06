@@ -407,6 +407,7 @@ def get_single_dataset(env, env_name, task_name, language_embedder, augmentation
             # print(f"😎😎😎 ONLY using {demo_nums_to_use_per_task} demos for target_task: {target_task_name}")
             demos = [demos[i] for i in demo_nums_to_use_per_task]
 
+        
         task_embedding = LANGUAGE_EMBEDDERS[language_embedder].encode(target_task_name)
 
         this_task_num_timesteps = 0

@@ -73,7 +73,7 @@ flags.DEFINE_boolean('use_pixels', False, 'Whether to use pixels as observations
 flags.DEFINE_boolean('use_proprio', False, 'Whether to use EEF proprio as observations during training and evaluation.')
 flags.DEFINE_boolean('use_mj_sim_state', False, 'Whether to use MJ sim state as observations during training and evaluation.')
 flags.DEFINE_boolean('use_language', False, 'Whether to use language as observations during training and evaluation.')
-flags.DEFINE_string('language_embedder', 'INVALID', 'Language embedder: one-hot or bert.')
+flags.DEFINE_string('language_embedder', 'bert', 'Language embedder: one-hot or bert.') # we still need a language embedder for compatibility, even if the actor doesn't use it (which will be set by use_language flag)
 flags.DEFINE_integer('num_demos_to_use_per_task', -1, 'Number of demos to use per task.')
 flags.DEFINE_boolean('batch_level_sampling', True, 'Whether to equalize sampling of tasks in each batch at the batch level (True).')
 flags.DEFINE_float('p_aug', 0.0, 'Image augmentation probability for training dataset.')
@@ -161,7 +161,7 @@ def main(_):
             keys_to_load.extend(['language']) # use language
         if FLAGS.use_mj_sim_state:
             keys_to_load.extend(['states']) # use MJ sim state
-        env, eval_env, train_dataset, val_dataset, names_to_return = make_env_and_datasets(
+        env, eval_env, train_dataset, val_dataset = make_env_and_datasets(
             FLAGS.env_name,
             FLAGS.task_name,
             FLAGS.language_embedder,
@@ -330,7 +330,9 @@ def main(_):
             # NOTE: during eval, the action chunk is executed fully (since horizon=5 and open_loop_horizon=5 as well!)
 
             all_eval_info = []
-            for j, eval_env_j in tqdm.tqdm(enumerate(eval_env), total=len(eval_env), desc="Evaluating multi-task", position=0,leave=False):
+            task_num = 0
+            for (eval_env_j, eval_env_j_name) in tqdm.tqdm(eval_env, desc=f"Evaluating multi-task for Task Number {task_num+1}", position=0,leave=False):
+                task_num += 1
                 eval_info, trajs, renders = evaluate(
                     agent=agent,
                     env=eval_env_j,
@@ -344,7 +346,7 @@ def main(_):
                 if len(renders) > 0:
                     # value_and_reward_visualization(trajs, agent, FLAGS.save_dir, log_step)
                     eval_info['video'] = get_wandb_video(renders)
-                logger.log(eval_info, f"eval_{names_to_return[j]}", step=log_step)
+                logger.log(eval_info, f"eval_{eval_env_j_name}", step=log_step)
                 # remove video before taking mean
                 if 'video' in eval_info:
                     del eval_info['video']
