@@ -119,7 +119,7 @@ def main(args):
             video_frame_skip=3,
         )
         #
-        suffix = 'gpu' + str(gpu_id) + '_' + time.strftime("%Y%m%d_%H%M%S") + str(
+        suffix = 'gpu' + str(gpu_id) + '_' + time.strftime("%Y%m%d_%H%M%S") + '___' + str(
             random.randint(0, 1000000)
         )
         with open(save_dir / f'eval_info_{suffix}.pkl', 'wb') as f:

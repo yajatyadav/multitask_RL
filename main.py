@@ -235,7 +235,8 @@ def main(_):
     )
 
     # Setup logging.
-    prefixes = ["env", "eval"] + [f"eval_{names_to_return[i]}" for i in range(len(names_to_return))]
+    eval_env_names = [x[1] for x in eval_env]
+    prefixes = ["env", "eval"] + [f"eval_{eval_env_names[i]}" for i in range(len(eval_env_names))]
     print(f"Logging prefixes ARE: {prefixes}")
     if FLAGS.offline_steps > 0:
         prefixes.append("offline_agent")

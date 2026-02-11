@@ -59,10 +59,58 @@ import numpy as np
 from pathlib import Path
 from jax import tree_util
 import tqdm
+import re
 
 from pathlib import Path
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def _parse_trajs_suffix_date(pkl_path):
+    """
+    Extract date from trajs_*.pkl filename suffix.
+    Suffix format from collect_rollout_from_bcactor: gpu{N}_{YYYYMMDD}_{HHMMSS}{random_digits}.
+    Returns string YYYYMMDD_HHMMSS (15 chars) or None if unparseable.
+    """
+    stem = pkl_path.stem
+    if not stem.startswith('trajs_'):
+        return None
+    suffix = stem[6:]
+    m = re.match(r'gpu\d+_(\d{8}_\d{6})', suffix)
+    if m is None:
+        return None
+    return m.group(1)
+
+
+def _filter_pkl_files_by_date(pkl_files, data_from_date_before):
+    """
+    Keep only pkl files whose suffix date is <= data_from_date_before.
+    data_from_date_before: YYYYMMDD (8 chars) or YYYYMMDD_HHMMSS (15 chars). Comparison is string lexicographic.
+    Files with unparseable suffixes are included (not filtered out).
+    """
+    if data_from_date_before is None or data_from_date_before == '':
+        return list(pkl_files)
+    cutoff = data_from_date_before.strip()
+    if len(cutoff) == 8:
+        cutoff_15 = cutoff + '_235959'
+    elif len(cutoff) == 15:
+        cutoff_15 = cutoff
+    else:
+        raise ValueError(
+            f"data_from_date_before must be YYYYMMDD (8 chars) or YYYYMMDD_HHMMSS (15 chars), got {len(cutoff)} chars: {cutoff!r}"
+        )
+    out = []
+    for p in pkl_files:
+        file_dt = _parse_trajs_suffix_date(p)
+        if file_dt is None:
+            out.append(p)
+        elif file_dt <= cutoff_15:
+            out.append(p)
+    
+    # if files filtered out, print
+    print(f"⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️ Filtered out {len(pkl_files) - len(out)}/{len(pkl_files)} pkl files with date before {data_from_date_before!r}")
+    return out
+
 
 class TransClassifier_BERT(nn.Module):
     vision_encoder: nn.Module = None    
@@ -189,15 +237,20 @@ def load_single_task_thread(args):
     Uses train_fraction and val_fraction to split demos so that train and val
     have equal proportion of success (max_rew==1) and failure (max_rew==0) trajectories.
     """
-    task_dir, task_name, train_fraction, val_fraction, action_clip_eps, seed = args
+    task_dir, task_name, train_fraction, val_fraction, action_clip_eps, seed, data_from_date_before = args
     
     assert abs((train_fraction + val_fraction) - 1.0) < 1e-6, (
         f"train_fraction + val_fraction must equal 1.0, got {train_fraction} + {val_fraction}"
     )
     
     pkl_files = sorted(Path(task_dir).glob('trajs_*.pkl'))
+    if data_from_date_before is not None and data_from_date_before != '':
+        n_before = len(pkl_files)
+        pkl_files = _filter_pkl_files_by_date(pkl_files, data_from_date_before)
+        if len(pkl_files) < n_before:
+            print(f"  [{task_name}] Using {len(pkl_files)}/{n_before} pkl files with date before {data_from_date_before!r}")
     if not pkl_files:
-        return task_name, None, None, f"No pickle files for {task_name}"
+        raise ValueError(f"No pickle files (after filtering) for {task_name}")
     print(f"Loading {len(pkl_files)} pickle files for {task_name}")
     
     # Load all pickle files
@@ -465,16 +518,18 @@ def load_single_task_thread(args):
 
 
 def load_all_tasks_parallel(rollouts_dir, task_names, train_fraction, val_fraction,
-                            seed, num_workers=16, action_clip_eps=1e-5, data_format='pickle'):
+                            seed, num_workers=16, action_clip_eps=1e-5, data_format='pickle',
+                            data_from_date_before=None):
     """
     Load all tasks in parallel using ThreadPoolExecutor.
     
     Args:
         data_format: 'pickle' or 'hdf5'
         seed: used for deterministic shuffle when splitting success/failure into train/val
+        data_from_date_before: only use trajs_*.pkl with suffix date on or before this (YYYYMMDD or YYYYMMDD_HHMMSS)
     """
     task_args = [
-        (rollouts_dir / task_name, task_name, train_fraction, val_fraction, action_clip_eps, seed)
+        (rollouts_dir / task_name, task_name, train_fraction, val_fraction, action_clip_eps, seed, data_from_date_before)
         for task_name in task_names
     ]
     
@@ -796,6 +851,8 @@ def get_loss_fn(network, batch, train, rng):
         # targets have shape(batch, seq_len), but the latter is redundant, since all transitions in a demo will have the same success, so just take the first one!
         
         # Binary cross-entropy: positives -> 1, negatives -> 0
+        logits = logits.squeeze()
+        targets = targets.squeeze()
         batch_loss  = optax.sigmoid_binary_cross_entropy(logits, targets)
         loss = jnp.mean(batch_loss)
         
@@ -885,7 +942,8 @@ def main(flags):
         rollouts, task_names, flags.train_fraction, flags.val_fraction,
         SEED,
         num_workers=flags.num_workers,
-        data_format=flags.data_format
+        data_format=flags.data_format,
+        data_from_date_before=flags.data_from_date_before,
     )
     load_time = time.time() - load_start
     print(f"Dataset loading completed in {load_time:.1f}s ({load_time/len(task_names):.2f}s per task)")
@@ -1085,7 +1143,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, required=True)
     parser.add_argument('--run_prefix', type=str, required=True)
-    parser.add_argument('--wandb_group', type=str, default='success_classifier_SINGLETASK_')
+    parser.add_argument('--wandb_group', type=str, required=True)
     
     parser.add_argument('--save_dir', type=str, required=False, default='/home/yajatyadav/multitask_reinforcement_learning/checkpoints/CLASSIFIERS/')
     parser.add_argument('--rollouts_dir', type=str, required=False, default='/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/bcactor_collected_rollouts/bcflow_libero_90_25_demo_ckpt_80k')
@@ -1104,6 +1162,8 @@ if __name__ == "__main__":
     parser.add_argument('--train_fraction', type=float, default=0.8)
     parser.add_argument('--val_fraction', type=float, default=0.2)
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--data_from_date_before', type=str, default=None,
+                        help='Only use trajs_*.pkl files with suffix date on or before this. Format: YYYYMMDD or YYYYMMDD_HHMMSS (matches collect_rollout_from_bcactor suffix).')
     parser.add_argument('--save_every', type=int, default=None)
     parser.add_argument('--val_interval', type=int, default=100)
     parser.add_argument('--num_val_tasks', type=int, default=10)
