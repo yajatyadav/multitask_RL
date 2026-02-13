@@ -1,20 +1,5 @@
 import os
 import sys
-sys.path.insert(0, os.getcwd())
-os.chdir('/home/yajatyadav/multitask_reinforcement_learning/multitask_RL')
-os.environ['MUJOCO_GL'] = 'egl'
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
-
-# ADD COMPILATION CACHE
-os.environ['XLA_FLAGS'] = (
-    '--xla_gpu_triton_gemm_any=True '
-    '--xla_gpu_autotune_level=2'  # Enable autotuning but cache results
-)
-
-if 'CUDA_VISIBLE_DEVICES' in os.environ:
-    os.environ['EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
-    os.environ['MUJOCO_EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
 
 import copy
 from typing import Any
@@ -237,7 +222,7 @@ def load_single_task_thread(args):
     Uses train_fraction and val_fraction to split demos so that train and val
     have equal proportion of success (max_rew==1) and failure (max_rew==0) trajectories.
     """
-    task_dir, task_name, train_fraction, val_fraction, action_clip_eps, seed, data_from_date_before = args
+    task_dir, task_name, train_fraction, val_fraction, action_clip_eps, seed, rollouts_per_task, data_from_date_before = args
     
     assert abs((train_fraction + val_fraction) - 1.0) < 1e-6, (
         f"train_fraction + val_fraction must equal 1.0, got {train_fraction} + {val_fraction}"
@@ -260,9 +245,12 @@ def load_single_task_thread(args):
     # First pass: process all demos and classify by success (max_rew==1) vs failure (max_rew==0)
     success_episodes = []  # list of (dataset_idx, ep_idx, timesteps)
     failure_episodes = []
-    
+
+    ep_counter = 0    
     for dataset_idx, dataset in enumerate(all_datasets):
         for ep_idx, ep in enumerate(dataset):
+            if ep_counter >= rollouts_per_task and rollouts_per_task != -1:
+                break
             timesteps = len(ep['actions'])
             rew_list = ep['rewards']
             assert len(rew_list) == timesteps, f"Reward list length {len(rew_list)} does not match timesteps {timesteps}"
@@ -273,6 +261,8 @@ def load_single_task_thread(args):
                 success_episodes.append(entry)
             else:
                 failure_episodes.append(entry)
+            ep_counter += 1
+    print(f"Loaded { ep_counter} = {len(success_episodes)} success episodes and {len(failure_episodes)} failure episodes for {task_name}")
     
     # Deterministic shuffle using provided seed
     rng = random.Random(seed)
@@ -518,7 +508,7 @@ def load_single_task_thread(args):
 
 
 def load_all_tasks_parallel(rollouts_dir, task_names, train_fraction, val_fraction,
-                            seed, num_workers=16, action_clip_eps=1e-5, data_format='pickle',
+                            seed, rollouts_per_task, num_workers=16, action_clip_eps=1e-5, data_format='pickle',
                             data_from_date_before=None):
     """
     Load all tasks in parallel using ThreadPoolExecutor.
@@ -529,7 +519,7 @@ def load_all_tasks_parallel(rollouts_dir, task_names, train_fraction, val_fracti
         data_from_date_before: only use trajs_*.pkl with suffix date on or before this (YYYYMMDD or YYYYMMDD_HHMMSS)
     """
     task_args = [
-        (rollouts_dir / task_name, task_name, train_fraction, val_fraction, action_clip_eps, seed, data_from_date_before)
+        (rollouts_dir / task_name, task_name, train_fraction, val_fraction, action_clip_eps, seed, rollouts_per_task, data_from_date_before)
         for task_name in task_names
     ]
     
@@ -901,7 +891,7 @@ def main(flags):
     
     # make save_dir
     time_suffix = time.strftime("%Y%m%d_%H%M%S")
-    run_name = f"{flags.run_prefix}_h{flags.horizon_length}_drop{flags.p_drop_state}_lr{flags.lr}_train{flags.train_fraction}_seed{SEED}_{time_suffix}"
+    run_name = f"{flags.run_prefix}_{flags.task_name}_h{flags.horizon_length}_drop{flags.p_drop_state}_lr{flags.lr}_train{flags.train_fraction}_seed{SEED}_{time_suffix}"
     save_dir = Path(flags.save_dir) / flags.wandb_group / run_name
     if save_dir.exists():
         print(f"Saving classifier to {save_dir}, but it already exists. Deleting it...")
@@ -917,6 +907,7 @@ def main(flags):
         name=run_name,
         config={
             "env_name": flags.env_name,
+            "task_name": flags.task_name,
             "horizon_length": flags.horizon_length,
             "p_drop_state": flags.p_drop_state,
             "lr": flags.lr,
@@ -941,6 +932,7 @@ def main(flags):
     train_datasets, val_datasets = load_all_tasks_parallel(
         rollouts, task_names, flags.train_fraction, flags.val_fraction,
         SEED,
+        flags.rollouts_per_task,
         num_workers=flags.num_workers,
         data_format=flags.data_format,
         data_from_date_before=flags.data_from_date_before,
@@ -1137,13 +1129,33 @@ def main(flags):
     
     wandb.finish()
 
+def setup_env_vars():
+    sys.path.insert(0, os.getcwd())
+    os.chdir('/home/yajatyadav/multitask_reinforcement_learning/multitask_RL')
+    os.environ['MUJOCO_GL'] = 'egl'
+    os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+    os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
+
+    # ADD COMPILATION CACHE
+    os.environ['XLA_FLAGS'] = (
+        '--xla_gpu_triton_gemm_any=True '
+        '--xla_gpu_autotune_level=2'  # Enable autotuning but cache results
+    )
+
+    if 'CUDA_VISIBLE_DEVICES' in os.environ:
+        os.environ['EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
+        os.environ['MUJOCO_EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, required=True)
+    parser.add_argument('--task_name', type=str, default='') # unused for now
     parser.add_argument('--run_prefix', type=str, required=True)
     parser.add_argument('--wandb_group', type=str, required=True)
+    parser.add_argument('--rollouts_per_task', type=int, required=False, default=-1, help='Number of rollouts to use per task')
+
     
     parser.add_argument('--save_dir', type=str, required=False, default='/home/yajatyadav/multitask_reinforcement_learning/checkpoints/CLASSIFIERS/')
     parser.add_argument('--rollouts_dir', type=str, required=False, default='/home/yajatyadav/multitask_reinforcement_learning/multitask_RL/bcactor_collected_rollouts/bcflow_libero_90_25_demo_ckpt_80k')
@@ -1168,4 +1180,6 @@ if __name__ == "__main__":
     parser.add_argument('--val_interval', type=int, default=100)
     parser.add_argument('--num_val_tasks', type=int, default=10)
     flags = parser.parse_args()
+
+    setup_env_vars()
     main(flags)

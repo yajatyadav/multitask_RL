@@ -204,7 +204,7 @@ def evaluate(
     for k, v in stats.items():
         stats[k] = np.mean(v)
 
-    # close the envs
-    # env.close()
+    # closing the envs done by the caller
+    stats['lang_str'] = env_str
     return stats, trajs, renders
 

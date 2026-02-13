@@ -4,18 +4,7 @@ score with classifier, take the best. Supports splitting n_vals across multiple 
 """
 import os
 import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.chdir('/home/yajatyadav/multitask_reinforcement_learning/multitask_RL')
-
-os.environ['MUJOCO_GL'] = 'egl'
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-xla_flags = os.environ.get('XLA_FLAGS', '')
-xla_flags += ' --xla_gpu_triton_gemm_any=True'
-os.environ['XLA_FLAGS'] = xla_flags
-if 'CUDA_VISIBLE_DEVICES' in os.environ:
-    os.environ['EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
-    os.environ['MUJOCO_EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # hack to be able to "see" evaluation_libero easily
 
 import argparse
 import copy
@@ -44,10 +33,15 @@ from utils.flax_utils import ModuleDict, TrainState
 from utils.log_utils import get_wandb_video
 from utils.networks import MLP
 
+# set the egl_device_id to be same as cuda_visible_devices
+os.environ['MUJOCO_GL'] = 'egl'
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ['XLA_FLAGS'] = os.environ.get('XLA_FLAGS', '') + ' --xla_gpu_triton_gemm_any=True'
 
-# -----------------------------------------------------------------------------
-# Classifier model (must match train_BERT_success_classifier)
-# -----------------------------------------------------------------------------
+# from classifier.train_BERT_success_classifier import TransClassifier_BERT, load_classifier
+# # -----------------------------------------------------------------------------
+# # Classifier model (must match train_BERT_success_classifier)
+# # -----------------------------------------------------------------------------
 
 class TransClassifier_BERT(nn.Module):
     vision_encoder: nn.Module = None
@@ -99,6 +93,7 @@ class LoggingHelper:
 
 # -----------------------------------------------------------------------------
 # Load classifier from checkpoint
+## TODO(YY): eventually just import this and transclassifier from file
 # -----------------------------------------------------------------------------
 
 def load_classifier(save_dir, ckpt_num):
@@ -213,9 +208,9 @@ class ClassifierAgent:
 # Evaluation loop
 # -----------------------------------------------------------------------------
 
-def eval_agent(agent, eval_envs_list, example_batch, num_eval_episodes, num_video_episodes, num_parallel_envs, video_frame_skip, logger, n):
+def eval_agent(agent, eval_envs_iterator, example_batch, num_eval_episodes, num_video_episodes, num_parallel_envs, video_frame_skip, logger, n):
     all_eval_info = []
-    for (eval_env_j, eval_env_j_name) in tqdm.tqdm(eval_envs_list, desc="Evaluating multi-task", position=0, leave=False):
+    for (eval_env_j, eval_env_j_name) in tqdm.tqdm(eval_envs_iterator, desc="Evaluating multi-task", position=0, leave=False):
         eval_info, trajs, renders = evaluate(
             agent=agent,
             env=eval_env_j,
@@ -230,12 +225,9 @@ def eval_agent(agent, eval_envs_list, example_batch, num_eval_episodes, num_vide
         if len(renders) > 0:
             eval_info['video'] = get_wandb_video(renders)
         logger.log(eval_info, f"eval_{eval_env_j_name}", step=n)
-        if 'video' in eval_info:
-            del eval_info['video']
-
-    eval_info_agg = {k: np.mean([e[k] for e in all_eval_info]) for k in all_eval_info[0].keys()}
+    eval_info_agg = {k: np.mean([e[k] for e in all_eval_info]) for k in all_eval_info[0].keys() if k != 'video'}
     logger.log(eval_info_agg, "eval", step=n)
-    return eval_info_agg
+    return eval_info_agg, all_eval_info
 
 
 # -----------------------------------------------------------------------------
@@ -246,7 +238,7 @@ def main(args):
     classifier_restore_dir = args.classifier_restore_dir
     classifier_ckpt_num = args.classifier_ckpt_num
     actor_restore_path = args.actor_restore_path
-    results_save_path = args.results_save_path
+    results_save_path = args.results_save_path + f'/{args.wandb_run_name}'
     env_name = args.env_name
     task_name = args.task_name
     n_vals = args.n_vals
@@ -262,25 +254,26 @@ def main(args):
     actor_encoder = args.actor_encoder
     actor_seed = args.actor_seed
     use_wandb = args.use_wandb
-
+    classifier_type = args.classifier_type
     assert n_vals, "n_vals must be non-empty"
     assert env_name, "env_name must be provided"
-
+    assert classifier_type, "classifier_type must be provided"
+    assert classifier_type in ['language', 'success'], "classifier_type must be either 'language' or 'success'"
     os.makedirs(results_save_path, exist_ok=True)
 
     if use_wandb:
-        # Every process (single or multi GPU) inits wandb with the same run_id.
-        # Parent never calls wandb.init(), so it never blocks; run_id is pre-generated.
-        # First process to init creates the run; others resume it (resume="allow").
+        # Single GPU: this process creates the run (resume="allow").
+        # Multi GPU: run was already created by a helper subprocess; we only resume (resume="must").
         wandb_run_id = getattr(args, 'wandb_run_id', None)
         init_timeout = getattr(args, 'wandb_init_timeout', 300)
+        resume_mode = "must" if getattr(args, "wandb_run_created_by_helper", False) else "allow"
         wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
             group=wandb_group_name,
             name=wandb_run_name,
             id=wandb_run_id,
-            resume="allow",
+            resume=resume_mode,
             settings=wandb.Settings(init_timeout=init_timeout),
         )
         logger = LoggingHelper(wandb_logger=wandb)
@@ -305,7 +298,7 @@ def main(args):
         augmentation_dict=None,
         is_notebook=False,
     )
-    eval_envs_list = list(eval_envs_iterator)
+    # eval_envs_list = list(eval_envs_iterator)
 
     example_batch = dataset.sample_sequence(1, sequence_length=horizon_length, discount=discount)
 
@@ -320,9 +313,9 @@ def main(args):
             N,
             actor_seed,
         )
-        eval_info = eval_agent(
+        agg_eval_info, all_eval_info = eval_agent(
             classifier_agent,
-            eval_envs_list,
+            eval_envs_iterator,
             example_batch,
             num_eval_episodes,
             num_video_episodes,
@@ -333,8 +326,24 @@ def main(args):
         )
         out_path = os.path.join(results_save_path, f'{wandb_run_name}_N_{N}.pkl')
         with open(out_path, 'wb') as f:
-            pickle.dump(eval_info, f)
+            pickle.dump({'agg_eval_info': agg_eval_info, 'all_eval_info': all_eval_info}, f)
         print(f"Saved eval info for N={N} to {out_path}")
+
+
+def _create_wandb_run_subprocess(project, entity, group, name, run_id, init_timeout):
+    """Run in a separate process to create the wandb run once. Avoids 409 Duplicate when
+    multiple GPU processes all try to create the same run_id with resume='allow'."""
+    wandb.init(
+        project=project,
+        entity=entity,
+        group=group,
+        name=name,
+        id=run_id,
+        resume="allow",
+        settings=wandb.Settings(init_timeout=init_timeout),
+    )
+    # Run exists now; exit so parent can spawn GPU workers with resume="must"
+    wandb.finish()
 
 
 def run_on_gpu(args, gpu_id, n_vals_for_this_gpu):
@@ -343,6 +352,12 @@ def run_on_gpu(args, gpu_id, n_vals_for_this_gpu):
     os.environ['MUJOCO_EGL_DEVICE_ID'] = str(gpu_id)
     os.environ['MUJOCO_GL'] = 'egl'
     os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+    # set openblas threads to 1, mkl
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+    os.environ['NUMEXPR_NUM_THREADS'] = '1'
     xla_flags = os.environ.get('XLA_FLAGS', '')
     xla_flags += ' --xla_gpu_triton_gemm_any=True'
     os.environ['XLA_FLAGS'] = xla_flags
@@ -359,24 +374,28 @@ def run_on_gpu(args, gpu_id, n_vals_for_this_gpu):
 def parse_args():
     parser = argparse.ArgumentParser(description='Best-of-N evaluation with BERT success classifier.')
 
+    parser.add_argument('--classifier_type', choices=['language', 'success'], required=True, help='Classifier type, helpful for logging')
     parser.add_argument('--classifier_restore_dir', type=str, required=True, help='Directory with classifier params_*.pkl and hparams_*.json')
     parser.add_argument('--classifier_ckpt_num', type=int, required=True, help='Classifier checkpoint number (e.g. 204 for params_204.pkl)')
+    
     parser.add_argument('--actor_restore_path', type=str, required=True, help='Path to actor checkpoint .pkl')
-    parser.add_argument('--results_save_path', type=str, required=True, help='Directory to save per-N eval pkl files')
+    parser.add_argument('--actor_encoder', type=str, default='combined_encoder_small', help='Actor encoder name used to train the actor network')
+    
+    parser.add_argument('--results_save_path', type=str, default='classifier/exp_results', help='Directory to save per-N eval pkl files')
+
 
     parser.add_argument('--env_name', type=str, required=True, help='Environment name (e.g. libero_90)')
-    parser.add_argument('--task_name', type=str, default='', help='Task name (used with env_name for task subset)')
+    parser.add_argument('--task_name', type=str, required=True, help='Task name (used with env_name for task subset)')
     parser.add_argument('--n_vals', nargs='+', type=int, required=True, help='Best-of-N values to evaluate (e.g. 1 2 4 8 16 32 64 128). Split across --gpus.')
     parser.add_argument('--gpus', nargs='+', type=int, required=True, help='GPU ids to use; n_vals are split across these (e.g. --gpus 0 1 2 3)')
 
     parser.add_argument('--wandb_group_name', type=str, required=True, help='W&B run group')
     parser.add_argument('--wandb_run_name', type=str, required=True, help='W&B run name')
-    
     parser.add_argument('--wandb_project', type=str, default='multitask_RL', help='W&B project')
     parser.add_argument('--wandb_entity', type=str, default='yajatyadav', help='W&B entity')
     
     parser.add_argument('--horizon_length', type=int, default=5, help='Action chunk length')
-    parser.add_argument('--num_eval_episodes', type=int, default=50, help='Evaluation episodes per env')
+    parser.add_argument('--num_eval_episodes', type=int, default=55, help='Evaluation episodes per env')
     parser.add_argument('--num_video_episodes', type=int, default=5, help='Video episodes per env')
     parser.add_argument('--num_parallel_envs', type=int, default=10, help='Parallel envs during eval')
     parser.add_argument('--video_frame_skip', type=int, default=3, help='Frame skip for videos')
@@ -384,7 +403,8 @@ def parse_args():
     parser.add_argument('--keys_to_load', nargs='+', type=str,
                         default=['agentview_rgb', 'eye_in_hand_rgb', 'language', 'proprio'],
                         help='Observation keys to load')
-    parser.add_argument('--actor_encoder', type=str, default='combined_encoder_small', help='Actor encoder name')
+ 
+    
     parser.add_argument('--actor_seed', type=int, default=0, help='Actor network seed')
     parser.add_argument('--demo_nums_to_use_per_task', nargs='+', type=int, default=[0], help='Demo indices for dataset (for example_batch only)')
     parser.add_argument('--use_wandb', action='store_true', default=True, help='Log to W&B')
@@ -397,8 +417,8 @@ def parse_args():
 if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
     args = parse_args()
-
     gpus = args.gpus
+    print(f"Using GPUs: {gpus} with n_vals: {args.n_vals}")
     n_vals = args.n_vals
     n_per_gpu = len(n_vals) // len(gpus)
     remainder = len(n_vals) % len(gpus)
@@ -410,9 +430,7 @@ if __name__ == "__main__":
         n_vals_per_gpu.append(n_vals[start:start + count])
         start += count
 
-    # Pre-generate a single run_id so all processes (and GPUs) log to the same run.
-    # Do NOT call wandb.init() here: it can hang (network/backend). Each child inits
-    # with this id and resume="allow" (first creates run, rest resume).
+    # Pre-generate a single run_id so all processes log to the same run.
     if args.use_wandb:
         args.wandb_run_id = secrets.token_hex(12)
     else:
@@ -421,8 +439,48 @@ if __name__ == "__main__":
     if len(gpus) == 1:
         args.n_vals = n_vals_per_gpu[0]
         args.gpu_id = gpus[0]
+        args.wandb_run_created_by_helper = False
         main(args)
     else:
+        # Create the wandb run once in a short-lived subprocess to avoid HTTP 409
+        # (multiple GPU processes all trying to create the same run_id).
+        if args.use_wandb:
+            init_timeout = getattr(args, 'wandb_init_timeout', 300)
+            creator = mp.Process(
+                target=_create_wandb_run_subprocess,
+                args=(
+                    args.wandb_project,
+                    args.wandb_entity,
+                    args.wandb_group_name,
+                    args.wandb_run_name,
+                    args.wandb_run_id,
+                    init_timeout,
+                ),
+            )
+            creator.start()
+            creator.join(timeout=init_timeout + 30)
+            if creator.is_alive():
+                creator.terminate()
+                creator.join(timeout=5)
+                print("Warning: wandb run creator timed out; GPU workers may see resume errors.")
+            args.wandb_run_created_by_helper = True
+
+        # Scale down num_parallel_envs per process so total LIBERO workers (n_gpus * num_parallel_envs)
+        # stays bounded and we avoid BrokenPipeError from too many nested subprocesses.
+        # Each GPU process uses num_parallel_envs // n_gpus (min 1).
+        # num_parallel_envs_orig = args.num_parallel_envs
+        # args.num_parallel_envs = max(1, args.num_parallel_envs // len(gpus))
+        # if args.num_parallel_envs != num_parallel_envs_orig:
+            # print(f"Multi-GPU: using num_parallel_envs={args.num_parallel_envs} per process (was {num_parallel_envs_orig}) to avoid pipe contention.")
+        # evaluation_libero.py requires (num_eval_episodes - num_video_episodes) % num_parallel_envs == 0.
+        # Round down so the assertion holds.
+        # num_eval_episodes_orig = args.num_eval_episodes
+        # n_eval = args.num_eval_episodes - args.num_video_episodes
+        # n_eval = (n_eval // args.num_parallel_envs) * args.num_parallel_envs
+        # args.num_eval_episodes = n_eval + args.num_video_episodes
+        # if args.num_eval_episodes != num_eval_episodes_orig:
+            # print(f"Multi-GPU: adjusted num_eval_episodes to {args.num_eval_episodes} (was {num_eval_episodes_orig}; must be divisible by num_parallel_envs={args.num_parallel_envs}).")
+
         processes = []
         for gpu_id, n_vals_this_gpu in zip(gpus, n_vals_per_gpu):
             if not n_vals_this_gpu:

@@ -89,9 +89,9 @@ flags.DEFINE_string('eval_actor_restore_path', None, 'Path to actor checkpoint f
 flags.DEFINE_multi_integer('eval_best_of_N_vals', [1, 2, 4, 8, 16, 32, 64, 128],
                           'List of n values to evaluate for best-of-N.')
 flags.DEFINE_boolean('eval_best_of_N_brc', True, 'Whether to evaluate best-of-N on BRC.')
-flags.DEFINE_integer('eval_episodes', 50, 'Number of evaluation episodes.')
-flags.DEFINE_integer('num_parallel_envs', 5, 'Number of parallel environments for evaluation.')
-flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes for each task.')
+flags.DEFINE_integer('eval_episodes', 55, 'Number of evaluation episodes.')
+flags.DEFINE_integer('num_parallel_envs', 1, 'Number of parallel environments for evaluation.')
+flags.DEFINE_integer('video_episodes', 5, 'Number of video episodes ( out of the eval_episodes) for each task.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
 # misc dataset args (NOT USED)
@@ -235,6 +235,7 @@ def main(_):
     )
 
     # Setup logging.
+    eval_env = [x for x in eval_env]
     eval_env_names = [x[1] for x in eval_env]
     prefixes = ["env", "eval"] + [f"eval_{eval_env_names[i]}" for i in range(len(eval_env_names))]
     print(f"Logging prefixes ARE: {prefixes}")
