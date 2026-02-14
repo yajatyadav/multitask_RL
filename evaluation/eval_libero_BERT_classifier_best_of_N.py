@@ -381,7 +381,7 @@ def parse_args():
     parser.add_argument('--actor_restore_path', type=str, required=True, help='Path to actor checkpoint .pkl')
     parser.add_argument('--actor_encoder', type=str, default='combined_encoder_small', help='Actor encoder name used to train the actor network')
     
-    parser.add_argument('--results_save_path', type=str, default='classifier/exp_results', help='Directory to save per-N eval pkl files')
+    parser.add_argument('--results_save_path', type=str, default='exp/multitask_RL/evaluations/', help='Directory to save per-N eval pkl files')
 
 
     parser.add_argument('--env_name', type=str, required=True, help='Environment name (e.g. libero_90)')

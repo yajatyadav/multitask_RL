@@ -1,0 +1,2 @@
+evaluation/success,evaluation/sampling/adv_mean,evaluation/sampling/adv_max,evaluation/sampling/adv_min,evaluation/sampling/adv_std,evaluation/time/q_time,evaluation/sampling/sampled_actions_mean,evaluation/sampling/sampled_actions_max,evaluation/sampling/sampled_actions_min,evaluation/sampling/sampled_actions_std,evaluation/time/pi0_time,step
+0.18,-0.72586244,-0.44255012,-1.0788027,0.21848524,0.001041555404663086,-0.026612548,0.14640416,-0.23553024,0.13862112,0.35652038097381594,1

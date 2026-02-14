@@ -7,10 +7,8 @@ dist/
 .DS_Store
 .idea/
 .ruff_cache/
-exp/
+old_checkpoint/
+bcactor_collected_rollouts/
 wandb/
-eval_results/
 *.pkl
-*videos.pkl
 *.mp4
-bert_env/

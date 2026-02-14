@@ -39,7 +39,6 @@ def add_to(dict_of_lists, single_dict):
     for k, v in single_dict.items():
         dict_of_lists[k].append(v)
 
-## TODO(YY): use sticky gripper / binarize gripper dim from action...
 def evaluate(
     agent,
     env,
@@ -85,7 +84,8 @@ def evaluate(
     num_eval_iterations = num_eval_episodes // num_parallel_envs
     num_video_iterations = num_video_episodes
 
-    env_str = env.get_env_str()    
+    env_str = env.get_env_str() 
+    stats['lang_str'] = env_str   
     for i in tqdm(range(num_eval_iterations + num_video_iterations), desc=f"Evaluating for env {env_str}", position=1,leave=False): # only 1 iteration for eval, since multiprocessed
         # print(f"Starting evaluation iteration {i} with {num_parallel_envs} parallel environments.")
         # should_render = i >= num_eval_episodes
@@ -97,17 +97,16 @@ def evaluate(
             env = eval_env
             num_episodes_this_iter = num_parallel_envs
         observation, info = env.reset(), {}
-            
-        observation_history = []
-        action_history = []
         
         done = [False] * num_episodes_this_iter
         step = 0
         render = []
-        action_chunk_lens = defaultdict(lambda: 0)
 
         action_queue = []
 
+        action_chunk_lens = defaultdict(lambda: 0)
+        observation_history = []
+        action_history = []
         gripper_contact_lengths = []
         gripper_contact_length = 0
 
@@ -164,35 +163,7 @@ def evaluate(
 
             
             observation = next_observation
-            # print(info)
-            # if "proprio" in info and "gripper_contact" in info["proprio"]:
-                # print(info["gripper_contact"])
-                # gripper_contact = info["proprio"]["gripper_contact"]
-            # elif "gripper_contact" in info:
-                # gripper_contact = info["gripper_contact"]
-            # else:
-                # gripper_contact = None
-            # if gripper_contact is not None:
-                # if info["gripper_contact"] > 0.1:
-                    # gripper_contact_length += 1
-                # else:
-                    # if gripper_contact_length > 0:
-                        # gripper_contact_lengths.append(gripper_contact_length)
-                    # gripper_contact_length = 0
 
-        # if gripper_contact_length > 0:
-            # gripper_contact_lengths.append(gripper_contact_length)
-        
-        # num_gripper_contacts = len(gripper_contact_lengths)
-        # if num_gripper_contacts > 0:
-        #     avg_gripper_contact_length = np.mean(np.array(gripper_contact_lengths))
-        # else:
-        #     avg_gripper_contact_length = 0
-            
-        # add_to(stats, {"avg_gripper_contact_length": avg_gripper_contact_length, "num_gripper_contacts": num_gripper_contacts})
-
-        # print("ending info dicts: ", info)
-        # after this iter finishes, either add all inf dicts into stats, or add the render to the renders list
         for inf in info:
             add_to(stats, flatten(inf))
         for traj_i in traj.values():
@@ -205,6 +176,5 @@ def evaluate(
         stats[k] = np.mean(v)
 
     # closing the envs done by the caller
-    stats['lang_str'] = env_str
     return stats, trajs, renders
 
