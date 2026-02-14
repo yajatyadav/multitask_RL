@@ -1,0 +1,153 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /global/scratch/users/yajatyadav/research/multitask_reinforcement_learning/multitask_RL/.venv/lib64/python3.11/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Loading datasets:   0%|          | 0/90 [00:00<?, ?it/s]Loading datasets:   1%|          | 1/90 [00:00<00:33,  2.62it/s]Loading datasets:   2%|▏         | 2/90 [00:00<00:28,  3.04it/s]Loading datasets:   3%|▎         | 3/90 [00:00<00:21,  3.97it/s]Loading datasets:   4%|▍         | 4/90 [00:01<00:33,  2.55it/s]Loading datasets:   6%|▌         | 5/90 [00:01<00:29,  2.89it/s]Loading datasets:   7%|▋         | 6/90 [00:02<00:29,  2.89it/s]Loading datasets:   8%|▊         | 7/90 [00:02<00:28,  2.90it/s]Loading datasets:   9%|▉         | 8/90 [00:02<00:25,  3.18it/s]Loading datasets:  10%|█         | 9/90 [00:02<00:25,  3.20it/s]Loading datasets:  11%|█         | 10/90 [00:03<00:24,  3.22it/s]Loading datasets:  12%|█▏        | 11/90 [00:03<00:24,  3.25it/s]Loading datasets:  13%|█▎        | 12/90 [00:03<00:19,  3.97it/s]Loading datasets:  14%|█▍        | 13/90 [00:03<00:18,  4.20it/s]Loading datasets:  16%|█▌        | 14/90 [00:04<00:18,  4.16it/s]Loading datasets:  17%|█▋        | 15/90 [00:04<00:17,  4.40it/s]Loading datasets:  18%|█▊        | 16/90 [00:04<00:15,  4.66it/s]Loading datasets:  19%|█▉        | 17/90 [00:04<00:16,  4.45it/s]Loading datasets:  20%|██        | 18/90 [00:05<00:17,  4.12it/s]Loading datasets:  21%|██        | 19/90 [00:05<00:18,  3.90it/s]Loading datasets:  22%|██▏       | 20/90 [00:05<00:17,  4.08it/s]Loading datasets:  23%|██▎       | 21/90 [00:05<00:17,  3.91it/s]Loading datasets:  24%|██▍       | 22/90 [00:06<00:17,  3.83it/s]Loading datasets:  26%|██▌       | 23/90 [00:06<00:17,  3.87it/s]Loading datasets:  27%|██▋       | 24/90 [00:06<00:17,  3.72it/s]Loading datasets:  28%|██▊       | 25/90 [00:06<00:17,  3.79it/s]Loading datasets:  29%|██▉       | 26/90 [00:07<00:17,  3.71it/s]Loading datasets:  30%|███       | 27/90 [00:07<00:18,  3.49it/s]Loading datasets:  31%|███       | 28/90 [00:07<00:18,  3.37it/s]Loading datasets:  32%|███▏      | 29/90 [00:08<00:16,  3.76it/s]Loading datasets:  33%|███▎      | 30/90 [00:08<00:15,  3.79it/s]Loading datasets:  34%|███▍      | 31/90 [00:08<00:15,  3.81it/s]Loading datasets:  36%|███▌      | 32/90 [00:08<00:15,  3.86it/s]Loading datasets:  37%|███▋      | 33/90 [00:09<00:14,  3.82it/s]Loading datasets:  38%|███▊      | 34/90 [00:09<00:14,  3.96it/s]Loading datasets:  39%|███▉      | 35/90 [00:09<00:13,  4.06it/s]Loading datasets:  40%|████      | 36/90 [00:09<00:13,  4.04it/s]Loading datasets:  41%|████      | 37/90 [00:10<00:14,  3.61it/s]Loading datasets:  42%|████▏     | 38/90 [00:10<00:14,  3.61it/s]Loading datasets:  43%|████▎     | 39/90 [00:10<00:14,  3.46it/s]Loading datasets:  44%|████▍     | 40/90 [00:11<00:14,  3.44it/s]Loading datasets:  46%|████▌     | 41/90 [00:11<00:13,  3.53it/s]Loading datasets:  47%|████▋     | 42/90 [00:11<00:13,  3.50it/s]Loading datasets:  48%|████▊     | 43/90 [00:11<00:12,  3.68it/s]Loading datasets:  49%|████▉     | 44/90 [00:12<00:12,  3.60it/s]Loading datasets:  50%|█████     | 45/90 [00:12<00:11,  3.91it/s]Loading datasets:  51%|█████     | 46/90 [00:12<00:11,  3.77it/s]Loading datasets:  52%|█████▏    | 47/90 [00:12<00:11,  3.76it/s]Loading datasets:  53%|█████▎    | 48/90 [00:13<00:11,  3.80it/s]Loading datasets:  54%|█████▍    | 49/90 [00:13<00:10,  3.88it/s]Loading datasets:  56%|█████▌    | 50/90 [00:13<00:10,  3.83it/s]Loading datasets:  57%|█████▋    | 51/90 [00:13<00:09,  4.02it/s]Loading datasets:  58%|█████▊    | 52/90 [00:14<00:10,  3.78it/s]Loading datasets:  59%|█████▉    | 53/90 [00:14<00:09,  3.72it/s]Loading datasets:  60%|██████    | 54/90 [00:14<00:09,  3.83it/s]Loading datasets:  62%|██████▏   | 56/90 [00:15<00:08,  3.88it/s]Loading datasets:  63%|██████▎   | 57/90 [00:15<00:08,  3.86it/s]Loading datasets:  64%|██████▍   | 58/90 [00:15<00:07,  4.29it/s]Loading datasets:  66%|██████▌   | 59/90 [00:15<00:07,  4.33it/s]Loading datasets:  67%|██████▋   | 60/90 [00:16<00:06,  4.37it/s]Loading datasets:  68%|██████▊   | 61/90 [00:16<00:06,  4.42it/s]Loading datasets:  69%|██████▉   | 62/90 [00:16<00:06,  4.12it/s]Loading datasets:  70%|███████   | 63/90 [00:16<00:06,  4.08it/s]Loading datasets:  71%|███████   | 64/90 [00:17<00:06,  4.00it/s]Loading datasets:  72%|███████▏  | 65/90 [00:17<00:06,  4.00it/s]Loading datasets:  73%|███████▎  | 66/90 [00:17<00:06,  3.96it/s]Loading datasets:  74%|███████▍  | 67/90 [00:17<00:05,  4.53it/s]Loading datasets:  76%|███████▌  | 68/90 [00:18<00:05,  4.14it/s]Loading datasets:  77%|███████▋  | 69/90 [00:18<00:05,  4.17it/s]Loading datasets:  78%|███████▊  | 70/90 [00:18<00:05,  3.97it/s]Loading datasets:  79%|███████▉  | 71/90 [00:18<00:04,  4.22it/s]Loading datasets:  80%|████████  | 72/90 [00:18<00:04,  4.13it/s]Loading datasets:  81%|████████  | 73/90 [00:19<00:04,  3.77it/s]Loading datasets:  82%|████████▏ | 74/90 [00:19<00:04,  3.81it/s]Loading datasets:  83%|████████▎ | 75/90 [00:19<00:04,  3.45it/s]Loading datasets:  84%|████████▍ | 76/90 [00:20<00:04,  3.17it/s]Loading datasets:  86%|████████▌ | 77/90 [00:20<00:03,  3.35it/s]Loading datasets:  87%|████████▋ | 78/90 [00:20<00:03,  3.42it/s]Loading datasets:  88%|████████▊ | 79/90 [00:21<00:03,  3.54it/s]Loading datasets:  89%|████████▉ | 80/90 [00:21<00:02,  3.76it/s]Loading datasets:  90%|█████████ | 81/90 [00:21<00:02,  4.00it/s]Loading datasets:  91%|█████████ | 82/90 [00:21<00:02,  3.80it/s]Loading datasets:  92%|█████████▏| 83/90 [00:22<00:02,  3.25it/s]Loading datasets:  93%|█████████▎| 84/90 [00:22<00:01,  3.26it/s]Loading datasets:  94%|█████████▍| 85/90 [00:22<00:01,  3.40it/s]Loading datasets:  96%|█████████▌| 86/90 [00:23<00:01,  3.68it/s]Loading datasets:  97%|█████████▋| 87/90 [00:23<00:00,  3.97it/s]Loading datasets:  98%|█████████▊| 88/90 [00:23<00:00,  4.27it/s]Loading datasets:  99%|█████████▉| 89/90 [00:23<00:00,  4.53it/s]Loading datasets: 100%|██████████| 90/90 [00:23<00:00,  4.93it/s]Loading datasets: 100%|██████████| 90/90 [00:23<00:00,  3.79it/s]
+/usr/lib64/python3.11/multiprocessing/popen_fork.py:66: RuntimeWarning: os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock.
+  self.pid = os.fork()
+
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:   0%|          | 0/14 [00:00<?, ?it/s][A2026-02-14 00:34:18.300220: W external/xla/xla/tsl/framework/bfc_allocator.cc:310] Allocator (GPU_0_bfc) ran out of memory trying to allocate 10.64GiB with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+2026-02-14 00:34:18.300267: W external/xla/xla/tsl/framework/bfc_allocator.cc:310] Allocator (GPU_0_bfc) ran out of memory trying to allocate 10.09GiB with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:   7%|▋         | 1/14 [01:13<15:59, 73.84s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  14%|█▍        | 2/14 [01:48<10:08, 50.70s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  21%|██▏       | 3/14 [02:22<07:54, 43.09s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  29%|██▊       | 4/14 [02:56<06:33, 39.39s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  36%|███▌      | 5/14 [03:30<05:37, 37.55s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  43%|████▎     | 6/14 [04:04<04:50, 36.37s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  50%|█████     | 7/14 [04:38<04:09, 35.65s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  57%|█████▋    | 8/14 [05:13<03:31, 35.27s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  64%|██████▍   | 9/14 [05:47<02:54, 34.97s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  71%|███████▏  | 10/14 [06:33<02:33, 38.27s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  79%|███████▊  | 11/14 [06:59<01:43, 34.66s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  86%|████████▌ | 12/14 [07:27<01:04, 32.48s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet:  93%|█████████▎| 13/14 [07:54<00:30, 30.84s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet: 100%|██████████| 14/14 [08:21<00:00, 29.76s/it][A
+                                                                                                                                  [A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:   7%|▋         | 1/14 [00:43<09:28, 43.77s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  14%|█▍        | 2/14 [01:22<08:08, 40.73s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  21%|██▏       | 3/14 [02:01<07:18, 39.85s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  29%|██▊       | 4/14 [02:39<06:30, 39.07s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  36%|███▌      | 5/14 [03:17<05:48, 38.70s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  43%|████▎     | 6/14 [03:55<05:07, 38.49s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  50%|█████     | 7/14 [04:16<03:49, 32.73s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  57%|█████▋    | 8/14 [04:53<03:25, 34.30s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  64%|██████▍   | 9/14 [05:31<02:57, 35.53s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  71%|███████▏  | 10/14 [05:46<01:55, 28.95s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  79%|███████▊  | 11/14 [06:15<01:27, 29.14s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  86%|████████▌ | 12/14 [06:26<00:46, 23.48s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle:  93%|█████████▎| 13/14 [06:37<00:19, 19.87s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle: 100%|██████████| 14/14 [06:58<00:00, 19.98s/it][A
+                                                                                                                                                              [A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:   7%|▋         | 1/14 [00:40<08:49, 40.77s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  14%|█▍        | 2/14 [01:16<07:33, 37.77s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  21%|██▏       | 3/14 [01:52<06:48, 37.10s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  29%|██▊       | 4/14 [02:28<06:04, 36.48s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  36%|███▌      | 5/14 [03:03<05:24, 36.04s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  43%|████▎     | 6/14 [03:38<04:46, 35.80s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  50%|█████     | 7/14 [04:14<04:10, 35.75s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  57%|█████▋    | 8/14 [04:49<03:33, 35.57s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  64%|██████▍   | 9/14 [05:24<02:56, 35.38s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  71%|███████▏  | 10/14 [05:53<02:13, 33.33s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  79%|███████▊  | 11/14 [06:20<01:34, 31.56s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  86%|████████▌ | 12/14 [06:49<01:00, 30.50s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet:  93%|█████████▎| 13/14 [07:16<00:29, 29.69s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet: 100%|██████████| 14/14 [07:44<00:00, 29.17s/it][A
+                                                                                                                                                    [A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:   7%|▋         | 1/14 [00:40<08:51, 40.91s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  14%|█▍        | 2/14 [01:17<07:39, 38.30s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  21%|██▏       | 3/14 [01:53<06:50, 37.31s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  29%|██▊       | 4/14 [02:29<06:05, 36.59s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  36%|███▌      | 5/14 [03:04<05:26, 36.25s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  43%|████▎     | 6/14 [03:40<04:48, 36.01s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  50%|█████     | 7/14 [04:16<04:12, 36.02s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  57%|█████▋    | 8/14 [04:51<03:34, 35.73s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  64%|██████▍   | 9/14 [05:27<02:59, 35.92s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  71%|███████▏  | 10/14 [05:55<02:13, 33.47s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  79%|███████▊  | 11/14 [06:11<01:24, 28.13s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  86%|████████▌ | 12/14 [06:40<00:56, 28.29s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate:  93%|█████████▎| 13/14 [06:52<00:23, 23.34s/it][A
+Evaluating for env libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate: 100%|██████████| 14/14 [07:20<00:00, 24.91s/it][A
+                                                                                                                            [A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:   7%|▋         | 1/14 [00:40<08:52, 41.00s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  14%|█▍        | 2/14 [01:16<07:36, 38.01s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  21%|██▏       | 3/14 [01:53<06:49, 37.24s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  29%|██▊       | 4/14 [02:29<06:07, 36.80s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  36%|███▌      | 5/14 [03:05<05:29, 36.60s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  43%|████▎     | 6/14 [03:41<04:50, 36.27s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  50%|█████     | 7/14 [04:17<04:13, 36.19s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  57%|█████▋    | 8/14 [04:52<03:36, 36.01s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  64%|██████▍   | 9/14 [05:29<03:00, 36.16s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  71%|███████▏  | 10/14 [05:57<02:14, 33.68s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  79%|███████▊  | 11/14 [06:25<01:35, 31.88s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  86%|████████▌ | 12/14 [06:37<00:51, 25.94s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket:  93%|█████████▎| 13/14 [07:05<00:26, 26.57s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket: 100%|██████████| 14/14 [07:34<00:00, 27.28s/it][A
+                                                                                                                                                   [A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:   7%|▋         | 1/14 [00:41<09:00, 41.54s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  14%|█▍        | 2/14 [01:17<07:40, 38.41s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  21%|██▏       | 3/14 [01:55<06:58, 38.00s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  29%|██▊       | 4/14 [02:33<06:22, 38.22s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  36%|███▌      | 5/14 [03:09<05:36, 37.39s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  43%|████▎     | 6/14 [03:46<04:58, 37.31s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  50%|█████     | 7/14 [04:23<04:20, 37.15s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  57%|█████▋    | 8/14 [04:59<03:40, 36.79s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  64%|██████▍   | 9/14 [05:35<03:02, 36.59s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  71%|███████▏  | 10/14 [06:04<02:16, 34.23s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  79%|███████▊  | 11/14 [06:35<01:39, 33.15s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  86%|████████▌ | 12/14 [07:04<01:03, 31.74s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray:  93%|█████████▎| 13/14 [07:33<00:31, 31.13s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray: 100%|██████████| 14/14 [08:02<00:00, 30.53s/it][A
+                                                                                                                                          [A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:   7%|▋         | 1/14 [00:47<10:19, 47.63s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  14%|█▍        | 2/14 [01:25<08:25, 42.17s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  21%|██▏       | 3/14 [02:04<07:23, 40.30s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  29%|██▊       | 4/14 [02:42<06:36, 39.66s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  36%|███▌      | 5/14 [03:23<06:00, 40.01s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  43%|████▎     | 6/14 [04:02<05:18, 39.79s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  50%|█████     | 7/14 [04:42<04:37, 39.67s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  57%|█████▋    | 8/14 [05:24<04:02, 40.43s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  64%|██████▍   | 9/14 [06:06<03:24, 40.99s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  71%|███████▏  | 10/14 [06:18<02:07, 31.97s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  79%|███████▊  | 11/14 [06:51<01:36, 32.25s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  86%|████████▌ | 12/14 [07:23<01:04, 32.37s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate:  93%|█████████▎| 13/14 [08:06<00:35, 35.55s/it][A
+Evaluating for env libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate: 100%|██████████| 14/14 [08:22<00:00, 29.64s/it][A
+                                                                                                                                   [A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:   7%|▋         | 1/14 [00:43<09:28, 43.76s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  14%|█▍        | 2/14 [01:20<07:57, 39.75s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  21%|██▏       | 3/14 [01:57<07:00, 38.22s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  29%|██▊       | 4/14 [02:34<06:17, 37.72s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  36%|███▌      | 5/14 [03:10<05:34, 37.21s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  43%|████▎     | 6/14 [03:46<04:55, 36.91s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  50%|█████     | 7/14 [04:22<04:16, 36.64s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  57%|█████▋    | 8/14 [04:59<03:39, 36.52s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  64%|██████▍   | 9/14 [05:35<03:02, 36.55s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  71%|███████▏  | 10/14 [06:05<02:17, 34.39s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  79%|███████▊  | 11/14 [06:34<01:38, 32.95s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  86%|████████▌ | 12/14 [06:46<00:52, 26.36s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy:  93%|█████████▎| 13/14 [06:56<00:21, 21.47s/it][A
+Evaluating for env libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy: 100%|██████████| 14/14 [07:26<00:00, 24.04s/it][A
+                                                                                                                                                                  [A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:   0%|          | 0/14 [00:00<?, ?it/s][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:   7%|▋         | 1/14 [00:40<08:47, 40.59s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  14%|█▍        | 2/14 [01:15<07:29, 37.46s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  21%|██▏       | 3/14 [01:51<06:44, 36.81s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  29%|██▊       | 4/14 [02:27<06:03, 36.33s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  36%|███▌      | 5/14 [03:03<05:25, 36.15s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  43%|████▎     | 6/14 [03:39<04:48, 36.12s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  50%|█████     | 7/14 [04:16<04:14, 36.35s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  57%|█████▋    | 8/14 [04:52<03:37, 36.32s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  64%|██████▍   | 9/14 [05:29<03:02, 36.42s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  71%|███████▏  | 10/14 [05:41<01:55, 28.92s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  79%|███████▊  | 11/14 [06:11<01:27, 29.23s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  86%|████████▌ | 12/14 [06:24<00:48, 24.38s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf:  93%|█████████▎| 13/14 [06:54<00:26, 26.06s/it][A
+Evaluating for env libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf: 100%|██████████| 14/14 [07:09<00:00, 22.79s/it][A
+                                                                                                                                                           [A

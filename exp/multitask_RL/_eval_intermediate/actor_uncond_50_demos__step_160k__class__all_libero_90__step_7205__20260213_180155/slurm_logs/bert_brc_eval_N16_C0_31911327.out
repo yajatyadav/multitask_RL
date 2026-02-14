@@ -1,0 +1,282 @@
+31911327.0 uv run evaluation/brc_eval/eval_libero_BERT_classifier_best_of_N_single_job.py --classifier_type language --classifier_restore_dir old_checkpoint/CLASSIFIERS/all_libero_90_language_classifier --classifier_ckpt_num 7205 --actor_restore_path exp/multitask_RL/bcflowactor_unconditional_NEWEST_/bcflowactor_all_libero_90__NO_LANG_CONDITIONING_no_actor_norm_50_demos_IMAGE_sd00020260211_163741/params_160000.pkl --actor_encoder image_proprio_small --env_name libero_90 --task_name all --n_val 16 --env_chunk_id 0 --num_env_chunks 10 --wandb_group_name eval_uncond_actor_with_language_classifier__ALL_libero_90 --wandb_run_name actor_uncond_50_demos__step_160k__class__all_libero_90__step_7205_ --wandb_project multitask_RL --wandb_entity yajatyadav --wandb_run_id 817eef6a6e2c3ba43db84a7e --run_dir_name actor_uncond_50_demos__step_160k__class__all_libero_90__step_7205__20260213_180155 --horizon_length 5 --num_eval_episodes 50 --num_video_episodes 5 --num_parallel_envs 5 --video_frame_skip 3 --language_embedder bert --actor_seed 0 --intermediate_base_dir exp/multitask_RL/_eval_intermediate/ --keys_to_load agentview_rgb eye_in_hand_rgb language proprio --demo_nums_to_use_per_task 0
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+🤪🤪🤪 making eval env for libero_90
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for close_the_top_drawer_of_the_cabinet has 71 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='close_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 71
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it']})
+🥳🥳🥳 j=0 Dataset for close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it has 197 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it'
+the total size of the dataset is 197
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE10_put_the_black_bowl_in_the_top_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_in_the_top_drawer_of_the_cabinet has 116 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_in_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 116
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE10_put_the_butter_at_the_back_in_the_top_drawer_of_the_cabinet_and_close_it']})
+🥳🥳🥳 j=0 Dataset for put_the_butter_at_the_back_in_the_top_drawer_of_the_cabinet_and_close_it has 183 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_butter_at_the_back_in_the_top_drawer_of_the_cabinet_and_close_it'
+the total size of the dataset is 183
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE10_put_the_butter_at_the_front_in_the_top_drawer_of_the_cabinet_and_close_it']})
+🥳🥳🥳 j=0 Dataset for put_the_butter_at_the_front_in_the_top_drawer_of_the_cabinet_and_close_it has 173 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_butter_at_the_front_in_the_top_drawer_of_the_cabinet_and_close_it'
+the total size of the dataset is 173
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE10_put_the_chocolate_pudding_in_the_top_drawer_of_the_cabinet_and_close_it']})
+🥳🥳🥳 j=0 Dataset for put_the_chocolate_pudding_in_the_top_drawer_of_the_cabinet_and_close_it has 168 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_chocolate_pudding_in_the_top_drawer_of_the_cabinet_and_close_it'
+the total size of the dataset is 168
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for open_the_bottom_drawer_of_the_cabinet has 124 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='open_the_bottom_drawer_of_the_cabinet'
+the total size of the dataset is 124
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE1_open_the_top_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for open_the_top_drawer_of_the_cabinet has 177 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='open_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 177
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE1_open_the_top_drawer_of_the_cabinet_and_put_the_bowl_in_it']})
+🥳🥳🥳 j=0 Dataset for open_the_top_drawer_of_the_cabinet_and_put_the_bowl_in_it has 189 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='open_the_top_drawer_of_the_cabinet_and_put_the_bowl_in_it'
+the total size of the dataset is 189
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE1_put_the_black_bowl_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_on_the_plate has 137 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_on_the_plate'
+the total size of the dataset is 137
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE1_put_the_black_bowl_on_top_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_on_top_of_the_cabinet has 161 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_on_top_of_the_cabinet'
+the total size of the dataset is 161
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE2_open_the_top_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for open_the_top_drawer_of_the_cabinet has 64 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='open_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 64
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_back_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_at_the_back_on_the_plate has 108 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_at_the_back_on_the_plate'
+the total size of the dataset is 108
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_front_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_at_the_front_on_the_plate has 134 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_at_the_front_on_the_plate'
+the total size of the dataset is 134
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_middle_black_bowl_on_the_plate has 108 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_middle_black_bowl_on_the_plate'
+the total size of the dataset is 108
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_top_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_middle_black_bowl_on_top_of_the_cabinet has 137 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_middle_black_bowl_on_top_of_the_cabinet'
+the total size of the dataset is 137
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle']})
+🥳🥳🥳 j=0 Dataset for stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle has 119 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle'
+the total size of the dataset is 119
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE2_stack_the_middle_black_bowl_on_the_back_black_bowl']})
+🥳🥳🥳 j=0 Dataset for stack_the_middle_black_bowl_on_the_back_black_bowl has 137 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='stack_the_middle_black_bowl_on_the_back_black_bowl'
+the total size of the dataset is 137
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE3_put_the_frying_pan_on_the_stove']})
+🥳🥳🥳 j=0 Dataset for put_the_frying_pan_on_the_stove has 184 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_frying_pan_on_the_stove'
+the total size of the dataset is 184
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE3_put_the_moka_pot_on_the_stove']})
+🥳🥳🥳 j=0 Dataset for put_the_moka_pot_on_the_stove has 135 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_moka_pot_on_the_stove'
+the total size of the dataset is 135
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE3_turn_on_the_stove']})
+🥳🥳🥳 j=0 Dataset for turn_on_the_stove has 90 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='turn_on_the_stove'
+the total size of the dataset is 90
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE3_turn_on_the_stove_and_put_the_frying_pan_on_it']})
+🥳🥳🥳 j=0 Dataset for turn_on_the_stove_and_put_the_frying_pan_on_it has 287 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='turn_on_the_stove_and_put_the_frying_pan_on_it'
+the total size of the dataset is 287
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE4_close_the_bottom_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for close_the_bottom_drawer_of_the_cabinet has 137 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='close_the_bottom_drawer_of_the_cabinet'
+the total size of the dataset is 137
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE4_close_the_bottom_drawer_of_the_cabinet_and_open_the_top_drawer']})
+🥳🥳🥳 j=0 Dataset for close_the_bottom_drawer_of_the_cabinet_and_open_the_top_drawer has 217 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='close_the_bottom_drawer_of_the_cabinet_and_open_the_top_drawer'
+the total size of the dataset is 217
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet has 166 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet'
+the total size of the dataset is 166
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE4_put_the_black_bowl_on_top_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_on_top_of_the_cabinet has 147 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_on_top_of_the_cabinet'
+the total size of the dataset is 147
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet has 169 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet'
+the total size of the dataset is 169
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE4_put_the_wine_bottle_on_the_wine_rack']})
+🥳🥳🥳 j=0 Dataset for put_the_wine_bottle_on_the_wine_rack has 309 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_wine_bottle_on_the_wine_rack'
+the total size of the dataset is 309
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE5_close_the_top_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for close_the_top_drawer_of_the_cabinet has 65 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='close_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 65
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE5_put_the_black_bowl_in_the_top_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_in_the_top_drawer_of_the_cabinet has 122 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_in_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 122
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE5_put_the_black_bowl_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_on_the_plate has 131 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_on_the_plate'
+the total size of the dataset is 131
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE5_put_the_black_bowl_on_top_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_black_bowl_on_top_of_the_cabinet has 147 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_black_bowl_on_top_of_the_cabinet'
+the total size of the dataset is 147
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE5_put_the_ketchup_in_the_top_drawer_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_ketchup_in_the_top_drawer_of_the_cabinet has 230 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_ketchup_in_the_top_drawer_of_the_cabinet'
+the total size of the dataset is 230
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE6_close_the_microwave']})
+🥳🥳🥳 j=0 Dataset for close_the_microwave has 236 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='close_the_microwave'
+the total size of the dataset is 236
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE6_put_the_yellow_and_white_mug_to_the_front_of_the_white_mug']})
+🥳🥳🥳 j=0 Dataset for put_the_yellow_and_white_mug_to_the_front_of_the_white_mug has 144 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_yellow_and_white_mug_to_the_front_of_the_white_mug'
+the total size of the dataset is 144
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE7_open_the_microwave']})
+🥳🥳🥳 j=0 Dataset for open_the_microwave has 131 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='open_the_microwave'
+the total size of the dataset is 131
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_white_bowl_on_the_plate has 223 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_white_bowl_on_the_plate'
+the total size of the dataset is 223
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE7_put_the_white_bowl_to_the_right_of_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_white_bowl_to_the_right_of_the_plate has 120 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_white_bowl_to_the_right_of_the_plate'
+the total size of the dataset is 120
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE8_put_the_right_moka_pot_on_the_stove']})
+🥳🥳🥳 j=0 Dataset for put_the_right_moka_pot_on_the_stove has 192 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_right_moka_pot_on_the_stove'
+the total size of the dataset is 192
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE8_turn_off_the_stove']})
+🥳🥳🥳 j=0 Dataset for turn_off_the_stove has 152 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='turn_off_the_stove'
+the total size of the dataset is 152
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE9_put_the_frying_pan_on_the_cabinet_shelf']})
+🥳🥳🥳 j=0 Dataset for put_the_frying_pan_on_the_cabinet_shelf has 177 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_frying_pan_on_the_cabinet_shelf'
+the total size of the dataset is 177
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE9_put_the_frying_pan_on_top_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_frying_pan_on_top_of_the_cabinet has 227 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_frying_pan_on_top_of_the_cabinet'
+the total size of the dataset is 227
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE9_put_the_frying_pan_under_the_cabinet_shelf']})
+🥳🥳🥳 j=0 Dataset for put_the_frying_pan_under_the_cabinet_shelf has 172 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_frying_pan_under_the_cabinet_shelf'
+the total size of the dataset is 172
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE9_put_the_white_bowl_on_top_of_the_cabinet']})
+🥳🥳🥳 j=0 Dataset for put_the_white_bowl_on_top_of_the_cabinet has 144 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_white_bowl_on_top_of_the_cabinet'
+the total size of the dataset is 144
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE9_turn_on_the_stove']})
+🥳🥳🥳 j=0 Dataset for turn_on_the_stove has 115 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='turn_on_the_stove'
+the total size of the dataset is 115
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE9_turn_on_the_stove_and_put_the_frying_pan_on_it']})
+🥳🥳🥳 j=0 Dataset for turn_on_the_stove_and_put_the_frying_pan_on_it has 255 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='turn_on_the_stove_and_put_the_frying_pan_on_it'
+the total size of the dataset is 255
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_alphabet_soup_and_put_it_in_the_basket has 154 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_alphabet_soup_and_put_it_in_the_basket'
+the total size of the dataset is 154
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE1_pick_up_the_cream_cheese_box_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_cream_cheese_box_and_put_it_in_the_basket has 161 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_cream_cheese_box_and_put_it_in_the_basket'
+the total size of the dataset is 161
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE1_pick_up_the_ketchup_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_ketchup_and_put_it_in_the_basket has 173 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_ketchup_and_put_it_in_the_basket'
+the total size of the dataset is 173
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE1_pick_up_the_tomato_sauce_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_tomato_sauce_and_put_it_in_the_basket has 162 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_tomato_sauce_and_put_it_in_the_basket'
+the total size of the dataset is 162
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE2_pick_up_the_alphabet_soup_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_alphabet_soup_and_put_it_in_the_basket has 164 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_alphabet_soup_and_put_it_in_the_basket'
+the total size of the dataset is 164
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE2_pick_up_the_butter_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_butter_and_put_it_in_the_basket has 146 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_butter_and_put_it_in_the_basket'
+the total size of the dataset is 146
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE2_pick_up_the_milk_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_milk_and_put_it_in_the_basket has 104 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_milk_and_put_it_in_the_basket'
+the total size of the dataset is 104
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE2_pick_up_the_orange_juice_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_orange_juice_and_put_it_in_the_basket has 148 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_orange_juice_and_put_it_in_the_basket'
+the total size of the dataset is 148
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE2_pick_up_the_tomato_sauce_and_put_it_in_the_basket']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_tomato_sauce_and_put_it_in_the_basket has 104 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_tomato_sauce_and_put_it_in_the_basket'
+the total size of the dataset is 104
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE3_pick_up_the_alphabet_soup_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_alphabet_soup_and_put_it_in_the_tray has 111 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_alphabet_soup_and_put_it_in_the_tray'
+the total size of the dataset is 111
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_butter_and_put_it_in_the_tray has 103 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_butter_and_put_it_in_the_tray'
+the total size of the dataset is 103
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE3_pick_up_the_cream_cheese_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_cream_cheese_and_put_it_in_the_tray has 158 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_cream_cheese_and_put_it_in_the_tray'
+the total size of the dataset is 158
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE3_pick_up_the_ketchup_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_ketchup_and_put_it_in_the_tray has 143 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_ketchup_and_put_it_in_the_tray'
+the total size of the dataset is 143
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE3_pick_up_the_tomato_sauce_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_tomato_sauce_and_put_it_in_the_tray has 128 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_tomato_sauce_and_put_it_in_the_tray'
+the total size of the dataset is 128
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE4_pick_up_the_black_bowl_on_the_left_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_black_bowl_on_the_left_and_put_it_in_the_tray has 110 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_black_bowl_on_the_left_and_put_it_in_the_tray'
+the total size of the dataset is 110
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE4_pick_up_the_chocolate_pudding_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_chocolate_pudding_and_put_it_in_the_tray has 151 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_chocolate_pudding_and_put_it_in_the_tray'
+the total size of the dataset is 151
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE4_pick_up_the_salad_dressing_and_put_it_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_salad_dressing_and_put_it_in_the_tray has 114 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_salad_dressing_and_put_it_in_the_tray'
+the total size of the dataset is 114
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE4_stack_the_left_bowl_on_the_right_bowl_and_place_them_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for stack_the_left_bowl_on_the_right_bowl_and_place_them_in_the_tray has 206 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='stack_the_left_bowl_on_the_right_bowl_and_place_them_in_the_tray'
+the total size of the dataset is 206
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE4_stack_the_right_bowl_on_the_left_bowl_and_place_them_in_the_tray']})
+🥳🥳🥳 j=0 Dataset for stack_the_right_bowl_on_the_left_bowl_and_place_them_in_the_tray has 231 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='stack_the_right_bowl_on_the_left_bowl_and_place_them_in_the_tray'
+the total size of the dataset is 231
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_left_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_red_mug_on_the_left_plate has 127 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_red_mug_on_the_left_plate'
+the total size of the dataset is 127
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_red_mug_on_the_right_plate has 180 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_red_mug_on_the_right_plate'
+the total size of the dataset is 180
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_white_mug_on_the_left_plate has 88 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_white_mug_on_the_left_plate'
+the total size of the dataset is 88
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE5_put_the_yellow_and_white_mug_on_the_right_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_yellow_and_white_mug_on_the_right_plate has 121 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_yellow_and_white_mug_on_the_right_plate'
+the total size of the dataset is 121
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE6_put_the_chocolate_pudding_to_the_left_of_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_chocolate_pudding_to_the_left_of_the_plate has 110 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_chocolate_pudding_to_the_left_of_the_plate'
+the total size of the dataset is 110
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE6_put_the_chocolate_pudding_to_the_right_of_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_chocolate_pudding_to_the_right_of_the_plate has 77 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_chocolate_pudding_to_the_right_of_the_plate'
+the total size of the dataset is 77
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE6_put_the_red_mug_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_red_mug_on_the_plate has 116 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_red_mug_on_the_plate'
+the total size of the dataset is 116
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate']})
+🥳🥳🥳 j=0 Dataset for put_the_white_mug_on_the_plate has 147 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='put_the_white_mug_on_the_plate'
+the total size of the dataset is 147
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy has 165 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy'
+the total size of the dataset is 165
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy has 148 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy'
+the total size of the dataset is 148
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy has 142 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy'
+the total size of the dataset is 142
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy has 129 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy'
+the total size of the dataset is 129
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy has 197 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy'
+the total size of the dataset is 197
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy has 133 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy'
+the total size of the dataset is 133
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy has 108 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy'
+the total size of the dataset is 108
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy has 161 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy'
+the total size of the dataset is 161
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy has 139 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy'
+the total size of the dataset is 139
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy has 159 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy'
+the total size of the dataset is 159
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy has 121 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy'
+the total size of the dataset is 121
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE3_pick_up_the_red_mug_and_place_it_to_the_right_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_red_mug_and_place_it_to_the_right_of_the_caddy has 119 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_red_mug_and_place_it_to_the_right_of_the_caddy'
+the total size of the dataset is 119
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE3_pick_up_the_white_mug_and_place_it_to_the_right_of_the_caddy']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_white_mug_and_place_it_to_the_right_of_the_caddy has 112 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_white_mug_and_place_it_to_the_right_of_the_caddy'
+the total size of the dataset is 112
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf has 167 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf'
+the total size of the dataset is 167
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE4_pick_up_the_book_on_the_left_and_place_it_on_top_of_the_shelf']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_on_the_left_and_place_it_on_top_of_the_shelf has 174 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_on_the_left_and_place_it_on_top_of_the_shelf'
+the total size of the dataset is 174
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE4_pick_up_the_book_on_the_right_and_place_it_on_the_cabinet_shelf']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_on_the_right_and_place_it_on_the_cabinet_shelf has 92 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_on_the_right_and_place_it_on_the_cabinet_shelf'
+the total size of the dataset is 92
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-STUDY_SCENE4_pick_up_the_book_on_the_right_and_place_it_under_the_cabinet_shelf']})
+🥳🥳🥳 j=0 Dataset for pick_up_the_book_on_the_right_and_place_it_under_the_cabinet_shelf has 123 using demos = [0], and zero_out_rewards=False, relabeled to lang_str='pick_up_the_book_on_the_right_and_place_it_under_the_cabinet_shelf'
+the total size of the dataset is 123
+TODO(YY): Normalization path not implemented for libero_90
+evaluation environment will return keys:  {'robot0_eye_in_hand_image', 'proprio', 'agentview_image', 'language'}
+all env names: defaultdict(<class 'list'>, {'libero_90': ['libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it', 'libero_90-KITCHEN_SCENE10_put_the_black_bowl_in_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE10_put_the_butter_at_the_back_in_the_top_drawer_of_the_cabinet_and_close_it', 'libero_90-KITCHEN_SCENE10_put_the_butter_at_the_front_in_the_top_drawer_of_the_cabinet_and_close_it', 'libero_90-KITCHEN_SCENE10_put_the_chocolate_pudding_in_the_top_drawer_of_the_cabinet_and_close_it', 'libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE1_open_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE1_open_the_top_drawer_of_the_cabinet_and_put_the_bowl_in_it', 'libero_90-KITCHEN_SCENE1_put_the_black_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE1_put_the_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_open_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_back_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_front_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle', 'libero_90-KITCHEN_SCENE2_stack_the_middle_black_bowl_on_the_back_black_bowl', 'libero_90-KITCHEN_SCENE3_put_the_frying_pan_on_the_stove', 'libero_90-KITCHEN_SCENE3_put_the_moka_pot_on_the_stove', 'libero_90-KITCHEN_SCENE3_turn_on_the_stove', 'libero_90-KITCHEN_SCENE3_turn_on_the_stove_and_put_the_frying_pan_on_it', 'libero_90-KITCHEN_SCENE4_close_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_close_the_bottom_drawer_of_the_cabinet_and_open_the_top_drawer', 'libero_90-KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_put_the_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_put_the_wine_bottle_on_the_wine_rack', 'libero_90-KITCHEN_SCENE5_close_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE5_put_the_black_bowl_in_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE5_put_the_black_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE5_put_the_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE5_put_the_ketchup_in_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE6_close_the_microwave', 'libero_90-KITCHEN_SCENE6_put_the_yellow_and_white_mug_to_the_front_of_the_white_mug', 'libero_90-KITCHEN_SCENE7_open_the_microwave', 'libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE7_put_the_white_bowl_to_the_right_of_the_plate', 'libero_90-KITCHEN_SCENE8_put_the_right_moka_pot_on_the_stove', 'libero_90-KITCHEN_SCENE8_turn_off_the_stove', 'libero_90-KITCHEN_SCENE9_put_the_frying_pan_on_the_cabinet_shelf', 'libero_90-KITCHEN_SCENE9_put_the_frying_pan_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE9_put_the_frying_pan_under_the_cabinet_shelf', 'libero_90-KITCHEN_SCENE9_put_the_white_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE9_turn_on_the_stove', 'libero_90-KITCHEN_SCENE9_turn_on_the_stove_and_put_the_frying_pan_on_it', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_cream_cheese_box_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_ketchup_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_tomato_sauce_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_alphabet_soup_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_butter_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_milk_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_orange_juice_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_tomato_sauce_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_alphabet_soup_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_cream_cheese_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_ketchup_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_tomato_sauce_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_pick_up_the_black_bowl_on_the_left_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_pick_up_the_chocolate_pudding_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_pick_up_the_salad_dressing_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_stack_the_left_bowl_on_the_right_bowl_and_place_them_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_stack_the_right_bowl_on_the_left_bowl_and_place_them_in_the_tray', 'libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_left_plate', 'libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate', 'libero_90-LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate', 'libero_90-LIVING_ROOM_SCENE5_put_the_yellow_and_white_mug_on_the_right_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_chocolate_pudding_to_the_left_of_the_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_chocolate_pudding_to_the_right_of_the_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_red_mug_on_the_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy', 'libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_red_mug_and_place_it_to_the_right_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_white_mug_and_place_it_to_the_right_of_the_caddy', 'libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf', 'libero_90-STUDY_SCENE4_pick_up_the_book_on_the_left_and_place_it_on_top_of_the_shelf', 'libero_90-STUDY_SCENE4_pick_up_the_book_on_the_right_and_place_it_on_the_cabinet_shelf', 'libero_90-STUDY_SCENE4_pick_up_the_book_on_the_right_and_place_it_under_the_cabinet_shelf']})
+ 😎😎😎 len(envs_to_eval)=90 Environments to evaluate: ['libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it', 'libero_90-KITCHEN_SCENE10_put_the_black_bowl_in_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE10_put_the_butter_at_the_back_in_the_top_drawer_of_the_cabinet_and_close_it', 'libero_90-KITCHEN_SCENE10_put_the_butter_at_the_front_in_the_top_drawer_of_the_cabinet_and_close_it', 'libero_90-KITCHEN_SCENE10_put_the_chocolate_pudding_in_the_top_drawer_of_the_cabinet_and_close_it', 'libero_90-KITCHEN_SCENE1_open_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE1_open_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE1_open_the_top_drawer_of_the_cabinet_and_put_the_bowl_in_it', 'libero_90-KITCHEN_SCENE1_put_the_black_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE1_put_the_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_open_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_back_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_black_bowl_at_the_front_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE2_put_the_middle_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle', 'libero_90-KITCHEN_SCENE2_stack_the_middle_black_bowl_on_the_back_black_bowl', 'libero_90-KITCHEN_SCENE3_put_the_frying_pan_on_the_stove', 'libero_90-KITCHEN_SCENE3_put_the_moka_pot_on_the_stove', 'libero_90-KITCHEN_SCENE3_turn_on_the_stove', 'libero_90-KITCHEN_SCENE3_turn_on_the_stove_and_put_the_frying_pan_on_it', 'libero_90-KITCHEN_SCENE4_close_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_close_the_bottom_drawer_of_the_cabinet_and_open_the_top_drawer', 'libero_90-KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_put_the_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_put_the_wine_bottle_in_the_bottom_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE4_put_the_wine_bottle_on_the_wine_rack', 'libero_90-KITCHEN_SCENE5_close_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE5_put_the_black_bowl_in_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE5_put_the_black_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE5_put_the_black_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE5_put_the_ketchup_in_the_top_drawer_of_the_cabinet', 'libero_90-KITCHEN_SCENE6_close_the_microwave', 'libero_90-KITCHEN_SCENE6_put_the_yellow_and_white_mug_to_the_front_of_the_white_mug', 'libero_90-KITCHEN_SCENE7_open_the_microwave', 'libero_90-KITCHEN_SCENE7_put_the_white_bowl_on_the_plate', 'libero_90-KITCHEN_SCENE7_put_the_white_bowl_to_the_right_of_the_plate', 'libero_90-KITCHEN_SCENE8_put_the_right_moka_pot_on_the_stove', 'libero_90-KITCHEN_SCENE8_turn_off_the_stove', 'libero_90-KITCHEN_SCENE9_put_the_frying_pan_on_the_cabinet_shelf', 'libero_90-KITCHEN_SCENE9_put_the_frying_pan_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE9_put_the_frying_pan_under_the_cabinet_shelf', 'libero_90-KITCHEN_SCENE9_put_the_white_bowl_on_top_of_the_cabinet', 'libero_90-KITCHEN_SCENE9_turn_on_the_stove', 'libero_90-KITCHEN_SCENE9_turn_on_the_stove_and_put_the_frying_pan_on_it', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_alphabet_soup_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_cream_cheese_box_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_ketchup_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE1_pick_up_the_tomato_sauce_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_alphabet_soup_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_butter_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_milk_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_orange_juice_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE2_pick_up_the_tomato_sauce_and_put_it_in_the_basket', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_alphabet_soup_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_butter_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_cream_cheese_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_ketchup_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE3_pick_up_the_tomato_sauce_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_pick_up_the_black_bowl_on_the_left_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_pick_up_the_chocolate_pudding_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_pick_up_the_salad_dressing_and_put_it_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_stack_the_left_bowl_on_the_right_bowl_and_place_them_in_the_tray', 'libero_90-LIVING_ROOM_SCENE4_stack_the_right_bowl_on_the_left_bowl_and_place_them_in_the_tray', 'libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_left_plate', 'libero_90-LIVING_ROOM_SCENE5_put_the_red_mug_on_the_right_plate', 'libero_90-LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate', 'libero_90-LIVING_ROOM_SCENE5_put_the_yellow_and_white_mug_on_the_right_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_chocolate_pudding_to_the_left_of_the_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_chocolate_pudding_to_the_right_of_the_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_red_mug_on_the_plate', 'libero_90-LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy', 'libero_90-STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy', 'libero_90-STUDY_SCENE1_pick_up_the_yellow_and_white_mug_and_place_it_to_the_right_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy', 'libero_90-STUDY_SCENE2_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_front_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_left_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_red_mug_and_place_it_to_the_right_of_the_caddy', 'libero_90-STUDY_SCENE3_pick_up_the_white_mug_and_place_it_to_the_right_of_the_caddy', 'libero_90-STUDY_SCENE4_pick_up_the_book_in_the_middle_and_place_it_on_the_cabinet_shelf', 'libero_90-STUDY_SCENE4_pick_up_the_book_on_the_left_and_place_it_on_top_of_the_shelf', 'libero_90-STUDY_SCENE4_pick_up_the_book_on_the_right_and_place_it_on_the_cabinet_shelf', 'libero_90-STUDY_SCENE4_pick_up_the_book_on_the_right_and_place_it_under_the_cabinet_shelf']
+Saved intermediate job result: exp/multitask_RL/_eval_intermediate/actor_uncond_50_demos__step_160k__class__all_libero_90__step_7205__20260213_180155/job_results/N_16/chunk_000_of_010_20260213_214124.pkl
+N=16, chunk=0/10, envs=9

@@ -163,7 +163,7 @@ def parse_args():
     parser.add_argument("--results_save_path", type=str, default="exp/multitask_RL/eval")
     parser.add_argument("--n_vals", nargs="+", type=int, default=None)
 
-    parser.add_argument("--wandb_group_name", type=str, required=True)
+    parser.add_argument("--wandb_group_name", type=str, required=False, default="eval_classifier_best_of_N")
     parser.add_argument("--wandb_run_name", type=str, required=True)
     parser.add_argument("--wandb_project", type=str, default="multitask_RL")
     parser.add_argument("--wandb_entity", type=str, default="yajatyadav")
