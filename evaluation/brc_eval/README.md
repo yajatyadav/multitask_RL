@@ -35,14 +35,14 @@ uv run evaluation/brc_eval/generate_eval_sbatch.py \
 2. Submit jobs:
 
 ```bash
-bash exp/multitask_RL/eval_intermediate/brc_eval_jobs/<wandb_run>/submission_scripts/<generated_script>.sh
+bash exp/multitask_RL/eval_intermediate/brc_eval_jobs/<wandb_run>_<timestamp>/submission_scripts/<generated_script>.sh
 ```
 
 3. After all jobs are done, run postprocess:
 
 ```bash
 uv run evaluation/brc_eval/postprocess_best_of_n_eval.py \
-  --intermediate_run_dir exp/multitask_RL/eval_intermediate/brc_eval_jobs/<wandb_run> \
+  --intermediate_run_dir exp/multitask_RL/eval_intermediate/brc_eval_jobs/<wandb_run>_<timestamp> \
   --results_save_path exp/multitask_RL/eval \
   --wandb_group_name "<wandb_group>" \
   --wandb_run_name "<wandb_run>" \

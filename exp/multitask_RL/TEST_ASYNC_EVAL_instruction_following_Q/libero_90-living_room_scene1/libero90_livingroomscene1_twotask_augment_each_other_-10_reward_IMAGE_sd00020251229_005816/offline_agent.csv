@@ -1,2 +1,0 @@
-actor/actor_loss,critic/critic_loss,critic/q_max,critic/q_mean,critic/q_min,grad/max,grad/min,grad/norm,value/v_max,value/v_mean,value/v_min,value/value_loss,step
-0,2327.0366,-2.5081828,-25.960121,-49.00995,244.64423,-232.46127,14469.961,2.5052633,1.4208207,0.4498851,0.5481906,1

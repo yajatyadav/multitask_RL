@@ -22,7 +22,8 @@ def generate_submission_script(args):
         args.wandb_run_id = secrets.token_hex(12)
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    run_root = os.path.join(args.intermediate_base_dir, args.wandb_run_name)
+    run_dir_name = f"{args.wandb_run_name}_{timestamp}"
+    run_root = os.path.join(args.intermediate_base_dir, run_dir_name)
     script_dir = os.path.join(run_root, "submission_scripts")
     log_dir = os.path.join(run_root, "slurm_logs")
     os.makedirs(script_dir, exist_ok=True)
@@ -102,6 +103,7 @@ def generate_submission_script(args):
                 f"--wandb_project {_q(args.wandb_project)}",
                 f"--wandb_entity {_q(args.wandb_entity)}",
                 f"--wandb_run_id {_q(args.wandb_run_id)}",
+                f"--run_dir_name {_q(run_dir_name)}",
                 f"--horizon_length {args.horizon_length}",
                 f"--num_eval_episodes {args.num_eval_episodes}",
                 f"--num_video_episodes {args.num_video_episodes}",
@@ -132,6 +134,7 @@ def generate_submission_script(args):
     lines.append('echo "Total jobs submitted: ${#job_ids[@]}"')
     lines.append('echo "Run name: $RUN_NAME"')
     lines.append('echo "Run ID: $RUN_ID"')
+    lines.append(f'echo "Run dir name: {run_dir_name}"')
     lines.append('echo "Intermediate outputs: $RUN_ROOT"')
     lines.append("")
     lines.append("echo \"After jobs finish, run postprocess:\"")
@@ -156,6 +159,7 @@ def generate_submission_script(args):
 
     print(f"Generated: {out_script}")
     print(f"Wandb run id: {args.wandb_run_id}")
+    print(f"Intermediate run directory: {run_root}")
     print(f"Submit with: bash {out_script}")
 
 

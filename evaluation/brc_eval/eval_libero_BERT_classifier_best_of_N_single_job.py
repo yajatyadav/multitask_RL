@@ -172,7 +172,8 @@ def _validate_chunk_args(chunk_id, num_chunks):
 
 
 def run_single_job(args):
-    run_root = os.path.join(args.intermediate_base_dir, args.wandb_run_name)
+    run_subdir = args.run_dir_name if args.run_dir_name else args.wandb_run_name
+    run_root = os.path.join(args.intermediate_base_dir, run_subdir)
     os.makedirs(run_root, exist_ok=True)
     _validate_chunk_args(args.env_chunk_id, args.num_env_chunks)
 
@@ -257,6 +258,7 @@ def run_single_job(args):
             "num_video_episodes": args.num_video_episodes,
             "video_frame_skip": args.video_frame_skip,
             "wandb_run_name": args.wandb_run_name,
+            "run_dir_name": run_subdir,
             "wandb_group_name": args.wandb_group_name,
             "wandb_project": args.wandb_project,
             "wandb_entity": args.wandb_entity,
@@ -297,6 +299,7 @@ def parse_args():
     parser.add_argument("--wandb_project", type=str, default="multitask_RL")
     parser.add_argument("--wandb_entity", type=str, default="yajatyadav")
     parser.add_argument("--wandb_run_id", type=str, default="")
+    parser.add_argument("--run_dir_name", type=str, default="")
 
     parser.add_argument("--horizon_length", type=int, default=5)
     parser.add_argument("--num_eval_episodes", type=int, default=55)
