@@ -84,8 +84,7 @@ def evaluate(
     num_eval_iterations = num_eval_episodes // num_parallel_envs
     num_video_iterations = num_video_episodes
 
-    env_str = env.get_env_str() 
-    stats['lang_str'] = env_str   
+    env_str = env.get_env_str()   
     for i in tqdm(range(num_eval_iterations + num_video_iterations), desc=f"Evaluating for env {env_str}", position=1,leave=False): # only 1 iteration for eval, since multiprocessed
         # print(f"Starting evaluation iteration {i} with {num_parallel_envs} parallel environments.")
         # should_render = i >= num_eval_episodes
@@ -174,6 +173,7 @@ def evaluate(
     # aggregate stats over all iterations
     for k, v in stats.items():
         stats[k] = np.mean(v)
+    stats['lang_str'] = env_str 
 
     # closing the envs done by the caller
     return stats, trajs, renders
