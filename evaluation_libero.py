@@ -173,7 +173,7 @@ def evaluate(
     # aggregate stats over all iterations
     for k, v in stats.items():
         stats[k] = np.mean(v)
-    stats['lang_str'] = env_str 
+    # stats['lang_str'] = env_str 
 
     # closing the envs done by the caller
     return stats, trajs, renders
