@@ -198,8 +198,8 @@ def parse_args():
     parser.add_argument("--actor_seed", type=int, default=0)
     parser.add_argument("--demo_nums_to_use_per_task", nargs="+", type=int, default=[0])
 
-    parser.add_argument("--intermediate_base_dir", type=str, default="exp/multitask_RL/eval_intermediate/brc_eval_jobs")
-    parser.add_argument("--results_save_path", type=str, default="exp/multitask_RL/eval")
+    parser.add_argument("--intermediate_base_dir", type=str, default="exp/multitask_RL/_eval_intermediate/")
+    parser.add_argument("--results_save_path", type=str, default="exp/multitask_RL/_eval")
     parser.add_argument("--script_runner", type=str, default="scripts/automatic/run.sh")
     parser.add_argument("--slurm_job_name_prefix", type=str, default="bert_brc_eval")
 
