@@ -1,0 +1,10 @@
+{
+  "batch_size": 256,
+  "horizon_length": 5,
+  "discount": 0.99,
+  "encoder": "image_only_tiny",
+  "embed_dim": 128,
+  "layer_norm": true,
+  "lr": 0.0003,
+  "p_drop_state": 0.5
+}

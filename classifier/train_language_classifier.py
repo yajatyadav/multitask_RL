@@ -13,31 +13,29 @@ if 'CUDA_VISIBLE_DEVICES' in os.environ:
     os.environ['MUJOCO_EGL_DEVICE_ID'] = os.environ['CUDA_VISIBLE_DEVICES']
 
 import copy
-from typing import Any
+import json
+import math
+import pickle
+import random
+import shutil
+import time
+from collections import defaultdict
+from pathlib import Path
 
 import flax
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-import ml_collections
 import optax
 import tqdm
 import numpy as np
-import math
-import random, json, pickle
+import wandb
 
 from utils.encoders import encoder_modules
-from utils.flax_utils import ModuleDict, TrainState, nonpytree_field, restore_agent_with_file
-import pickle
+from utils.flax_utils import ModuleDict, TrainState
 from utils.networks import MLP
-from typing import Sequence
 
-
-from envs.libero_utils import get_dataset as get_libero_dataset, make_env as make_libero_env
-from evaluation_libero import evaluate
-from utils.log_utils import get_wandb_video
-
-from envs.libero_utils import get_single_dataset
+from envs.libero_utils import get_dataset as get_libero_dataset, get_single_dataset
 from libero.libero.benchmark.libero_suite_task_map import libero_task_map
 from utils.log_utils import build_network_tree
 
@@ -109,20 +107,6 @@ class TransClassifier_BERT(nn.Module):
         return self.classifier(inputs)
 
 
-# train_percent, val_percent, test_percent = 0.9, 0.05, 0.05
-# tot_num_demos_per_task = 50
-# train_num_demos_per_task = int(train_percent * tot_num_demos_per_task)
-# val_num_demos_per_task = int(val_percent * tot_num_demos_per_task)
-# test_num_demos_per_task = tot_num_demos_per_task - train_num_demos_per_task - val_num_demos_per_task
-
-
-
-
-# shuffled_demo_nums = np.random.permutation(tot_num_demos_per_task)
-# train_demo_nums_to_use = list(shuffled_demo_nums[:train_num_demos_per_task])
-# val_demo_nums_to_use = list(shuffled_demo_nums[train_num_demos_per_task:train_num_demos_per_task + val_num_demos_per_task])
-# test_demo_nums_to_use = list(shuffled_demo_nums[train_num_demos_per_task + val_num_demos_per_task:])
-
 def save_classifier(network, step, save_dir, hparams):
     """Save everything needed to restore the classifier."""
     save_dir = Path(save_dir)
@@ -166,11 +150,12 @@ def load_classifier(save_dir, ckpt_number):
     
     return network, hparams
 
-def sample_negative_lang(batch, rng):
-    """Sample negative embeddings - call BEFORE JIT-compiled functions."""
+
+def sample_negative_lang(batch, rng, other_lang_embeddings_map):
+    """Sample negative language embeddings for each element in batch."""
     lang_embedding = batch['observations']['language']
     batch_size = lang_embedding.shape[0]
-    
+
     neg_embeddings = []
     for i in range(batch_size):
         key = tuple(np.array(lang_embedding[i]))
@@ -180,30 +165,32 @@ def sample_negative_lang(batch, rng):
         neg_embeddings.append(candidates[idx])
     return jnp.array(neg_embeddings), rng
 
-def get_loss_fn(batch, neg_lang, train, rng):    
+
+def _get_observations_without_language(observations):
+    return {k: v for k, v in observations.items() if k != 'language'}
+
+
+def get_loss_fn(network, batch, neg_lang, train, rng):
     def loss_fn(grad_params):
         masked_actions = batch['actions'] * batch['masks'][..., None]
         batch_actions = jnp.reshape(masked_actions, (masked_actions.shape[0], -1))
-        pos_lang = batch['observations'].pop('language')  # (batch, 768)
-        
+        pos_lang = batch['observations']['language']
+        model_observations = _get_observations_without_language(batch['observations'])
+
         pos_rng, neg_rng = jax.random.split(rng)
-        # Positive examples: correct (obs, action, lang) triplets
         pos_logits = network.select('classifier')(
-            batch['observations'], batch_actions, pos_lang,
+            model_observations, batch_actions, pos_lang,
             params=grad_params, train=train, rng=pos_rng
-        )  # (batch, 1)
-        
-        # Negative examples: use pre-sampled embeddings
+        )
         neg_logits = network.select('classifier')(
-            batch['observations'], batch_actions, neg_lang,
+            model_observations, batch_actions, neg_lang,
             params=grad_params, train=train, rng=neg_rng
-        )  # (batch, 1)
-        
-        # Binary cross-entropy: positives -> 1, negatives -> 0
+        )
+
         pos_loss = optax.sigmoid_binary_cross_entropy(pos_logits, jnp.ones_like(pos_logits))
         neg_loss = optax.sigmoid_binary_cross_entropy(neg_logits, jnp.zeros_like(neg_logits))
         classifier_loss = jnp.mean(pos_loss) + jnp.mean(neg_loss)
-        
+
         return classifier_loss, {
             'classifier_loss': classifier_loss,
             'pos_loss': jnp.mean(pos_loss),
@@ -211,57 +198,53 @@ def get_loss_fn(batch, neg_lang, train, rng):
         }
     return loss_fn
 
-def accuracy(network, batch, rng):
-    neg_lang, rng = sample_negative_lang(batch, rng)
-    
-    pos_lang = batch['observations'].pop('language')
+
+def accuracy(network, batch, rng, other_lang_embeddings_map):
+    neg_lang, rng = sample_negative_lang(batch, rng, other_lang_embeddings_map)
+    pos_lang = batch['observations']['language']
+    model_observations = _get_observations_without_language(batch['observations'])
     batch_masked_actions = batch['actions'] * batch['masks'][..., None]
     batch_actions = jnp.reshape(batch_masked_actions, (batch_masked_actions.shape[0], -1))
-    
-    # Positive examples
+
     pos_logits = network.select('classifier')(
-        batch['observations'], batch_actions, pos_lang,
+        model_observations, batch_actions, pos_lang,
         train=False, params=network.params
     )
-    
-    # Negative examples
     neg_logits = network.select('classifier')(
-        batch['observations'], batch_actions, neg_lang,
+        model_observations, batch_actions, neg_lang,
         train=False, params=network.params
     )
-    
-    # Correct if model assigns higher score to true lang than sampled neg lang
+
     num_correct = jnp.sum(pos_logits > neg_logits)
     num_total = pos_logits.shape[0]
-    
+
     return num_correct, num_total
-    
+
 
 @jax.jit
 def update(network, batch, neg_lang, rng):
     new_rng, rng = jax.random.split(rng)
-    loss_fn = get_loss_fn(batch, neg_lang, True, rng)
+    loss_fn = get_loss_fn(network, batch, neg_lang, True, rng)
     new_network, info = network.apply_loss_fn(loss_fn=loss_fn)
     network, rng = new_network, new_rng
     return network, rng, info
 
 
-from pathlib import Path
-import shutil
-def main(flags):
-    # make save_dir
-    save_dir = Path(flags.save_dir)
+def setup_save_dir(save_dir):
+    save_dir = Path(save_dir)
     if save_dir.exists():
         print(f"Saving classifier to {save_dir}, but it already exists. Deleting it...")
         shutil.rmtree(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
-    with open(save_dir / 'flags.json', 'w') as f:
-        json.dump(flags.__dict__, f)
+    return save_dir
 
-    NUM_TRAIN_DEMOS = flags.NUM_TRAIN_DEMOS
-    NUM_VAL_DEMOS = 50 - NUM_TRAIN_DEMOS
-    train_demo_nums_to_use = list(range(NUM_TRAIN_DEMOS))
-    val_demo_nums_to_use = list(range(NUM_TRAIN_DEMOS, NUM_TRAIN_DEMOS + NUM_VAL_DEMOS))
+
+def get_train_and_val_datasets(flags):
+    num_train_demos = flags.NUM_TRAIN_DEMOS
+    num_val_demos = 50 - num_train_demos
+    train_demo_nums_to_use = list(range(num_train_demos))
+    val_demo_nums_to_use = list(range(num_train_demos, num_train_demos + num_val_demos))
+
     keys_to_load = ['agentview_rgb', 'eye_in_hand_rgb', 'language']
     env_name = flags.env_name
     task_name = ''
@@ -270,32 +253,50 @@ def main(flags):
     language_embedder = flags.language_embedder
     batch_level_sampling = flags.batch_level_sampling
 
-    train_dataset = get_libero_dataset(None, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, batch_level_sampling=batch_level_sampling, demo_nums_to_use_per_task=train_demo_nums_to_use, augmentation_dict=None)
+    train_dataset = get_libero_dataset(
+        None,
+        env_name,
+        task_name,
+        language_embedder,
+        augmentation_type,
+        augmentation_reward,
+        keys_to_load,
+        batch_level_sampling=batch_level_sampling,
+        demo_nums_to_use_per_task=train_demo_nums_to_use,
+        augmentation_dict=None,
+    )
     print(f"main.py:Made env and datasets.Train dataset size: {train_dataset.size}", flush=True)
-    val_dataset = get_libero_dataset(None, env_name, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, batch_level_sampling=batch_level_sampling, demo_nums_to_use_per_task=val_demo_nums_to_use, augmentation_dict=None)
+    val_dataset = get_libero_dataset(
+        None,
+        env_name,
+        task_name,
+        language_embedder,
+        augmentation_type,
+        augmentation_reward,
+        keys_to_load,
+        batch_level_sampling=batch_level_sampling,
+        demo_nums_to_use_per_task=val_demo_nums_to_use,
+        augmentation_dict=None,
+    )
     print(f"main.py:Made env and datasets.Val dataset size: {val_dataset.size}", flush=True)
+    return train_dataset, val_dataset, val_demo_nums_to_use
 
 
-    # all hparams
+def init_network(train_dataset, horizon_length, p_drop_state, lr, seed):
     batch_size = 256
-    horizon_length = flags.horizon_length ## TODO(YY): change this to edit action chunking for the classifier...
     discount = 0.99
     encoder = 'image_only_tiny'
     embed_dim = encoder_modules[encoder]().mlp_hidden_dims[-1]
     layer_norm = True
-    lr  = 3e-4
-    p_drop_state = flags.p_drop_state
-
     example_batch = train_dataset.sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
     ex_observations = example_batch['observations']
     ex_actions = example_batch['actions']
     ex_lang_embedding = ex_observations.pop('language')
     full_actions = jnp.reshape(ex_actions, (ex_actions.shape[0], -1))
-    lang_embedding_dim = ex_lang_embedding.shape[-1]
-    print(f"lang_embedding_dim: {lang_embedding_dim}, action_dim: {full_actions.shape[-1]}")
+    print(f"lang_embedding_dim: {ex_lang_embedding.shape[-1]}, action_dim: {full_actions.shape[-1]}")
 
-    rng = jax.random.PRNGKey(SEED)
-    val_rng = jax.random.PRNGKey(SEED + 100)
+    rng = jax.random.PRNGKey(seed)
+    val_rng = jax.random.PRNGKey(seed + 100)
     rng, init_rng = jax.random.split(rng, 2)
     classifier_def = TransClassifier_BERT(
         vision_encoder=encoder_modules[encoder](),
@@ -303,73 +304,17 @@ def main(flags):
         layer_norm=layer_norm,
         p_drop_state=p_drop_state,
     )
-
-    network_info = dict(
-        classifier=(classifier_def, (ex_observations, full_actions, ex_lang_embedding, True, init_rng)),
-    )
+    network_info = {
+        'classifier': (classifier_def, (ex_observations, full_actions, ex_lang_embedding, True, init_rng)),
+    }
     networks = {k: v[0] for k, v in network_info.items()}
     network_args = {k: v[1] for k, v in network_info.items()}
     network_def = ModuleDict(networks)
     network_tx = optax.adam(learning_rate=lr)
     network_params = network_def.init(init_rng, **network_args)['params']
     network = TrainState.create(network_def, network_params, tx=network_tx)
-
-    
     build_network_tree(network.params)
 
-
-    BERT_HIDDEN_DIM = 768
-    all_possible_lang_embeddings = set()
-    for i in tqdm.tqdm(range(50), desc="Sampling lang embeddings"):
-        batch = train_dataset.sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
-        for lang_embedding in batch['observations']['language']:
-            lang_embedding = tuple(lang_embedding)
-            all_possible_lang_embeddings.add(lang_embedding)
-    all_possible_lang_embeddings = [np.array(lang_embedding) for lang_embedding in all_possible_lang_embeddings]
-
-    other_lang_embeddings_map = {tuple(lang_embedding): [] for lang_embedding in all_possible_lang_embeddings}
-    for lang_embedding in tqdm.tqdm(other_lang_embeddings_map, total=len(other_lang_embeddings_map)):
-        for other_lang_embedding in all_possible_lang_embeddings:
-            if np.any(lang_embedding != other_lang_embedding):
-                other_lang_embeddings_map[lang_embedding].append(other_lang_embedding)
-
-    NUM_TASKS = ENV_NAME_TO_EXPECTED_NUM_TASKS[env_name]
-    assert len(other_lang_embeddings_map) == NUM_TASKS, f"Expected {NUM_TASKS} lang embeddings, got {len(other_lang_embeddings_map)}"
-    assert [len(x) == NUM_TASKS - 1 for x in other_lang_embeddings_map.values()], f"Expected {NUM_TASKS - 1} negative samples for each lang embedding, got {len(x)} for {lang_embedding}"
-
-
-
-    # instantiate per-task data-iterators using val+test demo_nums_to_use, in 1 dataset object
-    per_task_val_datasets = {}
-    if env_name == 'libero_90':   
-        envs_list = libero_task_map["libero_90"]
-        envs_list = [f"libero_90-{env}" for env in envs_list]
-    else:
-        envs_list = env_name.split('|')
-    print(f"env_name_list: {envs_list}")
-    for env_name_i in envs_list:
-        per_task_val_datasets[env_name_i] = get_single_dataset(None, env_name_i, task_name, language_embedder, augmentation_type, augmentation_reward, keys_to_load, demo_nums_to_use_per_task=val_demo_nums_to_use, augmentation_dict=None)
-
-
-
-    train_losses, val_losses = [], []
-    from collections import defaultdict
-    per_task_train_losses, per_task_val_losses = defaultdict(list), defaultdict(list)
-    val_accuracies = []
-    per_task_val_accuracies = defaultdict(list)
-    grad_max, grad_min, grad_norm = [], [], []
-    per_task_grad_max, per_task_grad_min, per_task_grad_norm = defaultdict(list), defaultdict(list), defaultdict(list)
-
-
-    print(train_dataset.size)
-    NUM_EPOCHS = 10
-    VAL_INTERVAL = 25
-    SAVE_EVERY = 655
-    num_train_steps = NUM_EPOCHS * math.ceil(train_dataset.size / batch_size)
-    print(f"num_train_steps: {num_train_steps}")
-
-
-    # Save
     hparams = {
         'batch_size': batch_size,
         'horizon_length': horizon_length,
@@ -380,49 +325,196 @@ def main(flags):
         'lr': lr,
         'p_drop_state': p_drop_state,
     }
+    return network, rng, val_rng, hparams
 
-    for step in tqdm.tqdm(range(1, num_train_steps+1), total=num_train_steps, desc="Training"):
+
+def build_negative_language_map(train_dataset, batch_size, horizon_length, discount, env_name):
+    all_possible_lang_embeddings = set()
+    for _ in tqdm.tqdm(range(50), desc="Sampling lang embeddings"):
         batch = train_dataset.sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
-        neg_lang, rng = sample_negative_lang(batch, rng)
+        for lang_embedding in batch['observations']['language']:
+            all_possible_lang_embeddings.add(tuple(lang_embedding))
+    all_possible_lang_embeddings = [np.array(lang_embedding) for lang_embedding in all_possible_lang_embeddings]
+
+    other_lang_embeddings_map = {tuple(lang_embedding): [] for lang_embedding in all_possible_lang_embeddings}
+    for lang_embedding in tqdm.tqdm(other_lang_embeddings_map, total=len(other_lang_embeddings_map)):
+        for other_lang_embedding in all_possible_lang_embeddings:
+            if np.any(lang_embedding != other_lang_embedding):
+                other_lang_embeddings_map[lang_embedding].append(other_lang_embedding)
+
+    num_tasks = ENV_NAME_TO_EXPECTED_NUM_TASKS[env_name]
+    assert len(other_lang_embeddings_map) == num_tasks, (
+        f"Expected {num_tasks} lang embeddings, got {len(other_lang_embeddings_map)}"
+    )
+    assert all(len(v) == num_tasks - 1 for v in other_lang_embeddings_map.values()), (
+        f"Expected {num_tasks - 1} negative samples per lang embedding."
+    )
+    return other_lang_embeddings_map
+
+
+def build_per_task_val_datasets(env_name, task_name, language_embedder, val_demo_nums_to_use):
+    keys_to_load = ['agentview_rgb', 'eye_in_hand_rgb', 'language']
+    augmentation_type = 'none'
+    augmentation_reward = False
+
+    if env_name == 'libero_90':
+        envs_list = [f"libero_90-{env}" for env in libero_task_map["libero_90"]]
+    else:
+        envs_list = env_name.split('|')
+    print(f"env_name_list: {envs_list}")
+
+    per_task_val_datasets = {}
+    for env_name_i in envs_list:
+        per_task_val_datasets[env_name_i] = get_single_dataset(
+            None,
+            env_name_i,
+            task_name,
+            language_embedder,
+            augmentation_type,
+            augmentation_reward,
+            keys_to_load,
+            demo_nums_to_use_per_task=val_demo_nums_to_use,
+            augmentation_dict=None,
+        )
+    return per_task_val_datasets
+
+
+def main(flags):
+    seed = flags.seed
+    random.seed(seed)
+    np.random.seed(seed)
+
+    time_suffix = time.strftime("%Y%m%d_%H%M%S")
+    run_name = f"{flags.run_prefix}_{flags.env_name}_h{flags.horizon_length}_drop{flags.p_drop_state}_lr{flags.lr}_train{flags.NUM_TRAIN_DEMOS}_seed{seed}_{time_suffix}"
+
+    save_dir = setup_save_dir(Path(flags.save_dir) / flags.wandb_group / run_name)
+    with open(save_dir / 'flags.json', 'w') as f:
+        json.dump(flags.__dict__, f)
+
+    if flags.use_wandb:
+        wandb.init(
+            entity=flags.wandb_entity,
+            project=flags.wandb_project,
+            group=flags.wandb_group,
+            name=run_name,
+            config=flags.__dict__,
+        )
+
+    train_dataset, val_dataset, val_demo_nums_to_use = get_train_and_val_datasets(flags)
+
+    env_name = flags.env_name
+    task_name = flags.task_name
+    language_embedder = flags.language_embedder
+
+    batch_size = 256
+    horizon_length = flags.horizon_length
+    discount = 0.99
+    p_drop_state = flags.p_drop_state
+    network, rng, val_rng, hparams = init_network(
+        train_dataset=train_dataset,
+        horizon_length=horizon_length,
+        p_drop_state=p_drop_state,
+        lr=flags.lr,
+        seed=seed,
+    )
+
+    other_lang_embeddings_map = build_negative_language_map(
+        train_dataset=train_dataset,
+        batch_size=batch_size,
+        horizon_length=horizon_length,
+        discount=discount,
+        env_name=env_name,
+    )
+    per_task_val_datasets = build_per_task_val_datasets(
+        env_name=env_name,
+        task_name=task_name,
+        language_embedder=language_embedder,
+        val_demo_nums_to_use=val_demo_nums_to_use,
+    )
+
+    train_losses, val_losses = [], []
+    per_task_val_losses = defaultdict(list)
+    val_accuracies = []
+    per_task_val_accuracies = defaultdict(list)
+    grad_max, grad_min, grad_norm = [], [], []
+
+    print(train_dataset.size)
+    NUM_EPOCHS = flags.num_epochs
+    VAL_INTERVAL = flags.val_interval
+    NUM_VAL_TASKS = flags.num_val_tasks
+    if flags.save_every is None:
+        SAVE_EVERY = train_dataset.size // (2 * batch_size)  # save roughly every half epoch
+    else:
+        SAVE_EVERY = flags.save_every
+    
+    num_train_steps = math.ceil(NUM_EPOCHS * train_dataset.size / batch_size)
+    print(f"num_train_steps: {num_train_steps}")
+
+
+    for step in tqdm.tqdm(range(1, num_train_steps + 1), total=num_train_steps, desc="Training"):
+        batch = train_dataset.sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
+        neg_lang, rng = sample_negative_lang(batch, rng, other_lang_embeddings_map)
         network, rng, info = update(network, batch, neg_lang, rng)
         train_losses.append((step, info['classifier_loss'], info['pos_loss'], info['neg_loss']))
         grad_max.append((step, info['grad/max']))
         grad_min.append((step, info['grad/min']))
         grad_norm.append((step, info['grad/norm']))
         
-        if (VAL_INTERVAL > 0 and (step == 1 or step % VAL_INTERVAL == 0)):
-            val_batch = val_dataset.sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
-            val_neg_lang, val_rng = sample_negative_lang(val_batch, val_rng)
-            val_batch_copy = copy.deepcopy(val_batch)
-            val_rng, val_loss_rng, val_acc_rng = jax.random.split(val_rng, 3)
-            loss_fn = get_loss_fn(val_batch, val_neg_lang, False, val_loss_rng)
-            loss, info = loss_fn(network.params)
-            num_correct, num_total = accuracy(network, val_batch_copy, val_acc_rng)
-            val_losses.append((step, info['classifier_loss'], info['pos_loss'], info['neg_loss']))
-            val_accuracies.append((step, num_correct / num_total))
+        if (VAL_INTERVAL > 0 and (step == 1 or step % VAL_INTERVAL == 0 or step == num_train_steps)):
+            train_log = {
+                'train/loss': float(info['classifier_loss']),
+                'train/pos_loss': float(info['pos_loss']),
+                'train/neg_loss': float(info['neg_loss']),
+                'train/grad_max': float(info['grad/max']),
+                'train/grad_min': float(info['grad/min']),
+                'train/grad_norm': float(info['grad/norm']),
+                'step': step,
+            }
 
+            val_losses_this_iter, val_accuracies_this_iter = [], []
+            val_log = {}
 
-            # per-task val logging: we iterate through each val dataset, take a batch from it, compute loss / acc, and move on
-            for eval_name in per_task_val_datasets:
+            val_task_names = list(per_task_val_datasets.keys())
+            if len(val_task_names) < NUM_VAL_TASKS:
+                sampled_val_tasks = val_task_names
+            else:
+                sampled_val_tasks = random.sample(val_task_names, NUM_VAL_TASKS)
+
+            for eval_name in sampled_val_tasks:
                 val_batch = per_task_val_datasets[eval_name].sample_sequence(batch_size, sequence_length=horizon_length, discount=discount)
-                val_neg_lang, val_rng = sample_negative_lang(val_batch, val_rng)
+                val_neg_lang, val_rng = sample_negative_lang(val_batch, val_rng, other_lang_embeddings_map)
                 val_batch_copy = copy.deepcopy(val_batch)
                 val_rng, val_loss_rng, val_acc_rng = jax.random.split(val_rng, 3)
-                loss_fn = get_loss_fn(val_batch, val_neg_lang, False, val_loss_rng)
+                loss_fn = get_loss_fn(network, val_batch, val_neg_lang, False, val_loss_rng)
                 loss, info = loss_fn(network.params)
+                num_correct, num_total = accuracy(network, val_batch_copy, val_acc_rng, other_lang_embeddings_map)
+                task_loss = float(info['classifier_loss'])
+                task_acc = float(num_correct / num_total)
 
-                num_correct, num_total = accuracy(network, val_batch_copy, val_acc_rng)
-                per_task_val_losses[eval_name].append((step, info['classifier_loss'], info['pos_loss'], info['neg_loss']))
-                per_task_val_accuracies[eval_name].append((step, num_correct / num_total))
+                per_task_val_losses[eval_name].append((step, task_loss))
+                per_task_val_accuracies[eval_name].append((step, task_acc))
+                val_losses_this_iter.append(task_loss)
+                val_accuracies_this_iter.append(task_acc)
+                val_log[f'val_per_task/{eval_name}/loss'] = task_loss
+                val_log[f'val_per_task/{eval_name}/accuracy'] = task_acc
 
-        # save every SAVE_EVERY steps or at the end of training
-        if (SAVE_EVERY > 0 and ( step % SAVE_EVERY == 0)) or (step == num_train_steps):
+            if val_losses_this_iter:
+                avg_val_loss = float(np.mean(val_losses_this_iter))
+                avg_val_acc = float(np.mean(val_accuracies_this_iter))
+                val_losses.append((step, avg_val_loss))
+                val_accuracies.append((step, avg_val_acc))
+                val_log['val/loss'] = avg_val_loss
+                val_log['val/accuracy'] = avg_val_acc
+                val_log['step'] = step
+                if flags.use_wandb:
+                    wandb.log({**train_log, **val_log}, step=step)
+            elif flags.use_wandb:
+                wandb.log(train_log, step=step)
+
+        if (SAVE_EVERY > 0 and (step % SAVE_EVERY == 0)) or (step == num_train_steps):
             print(f"Saving classifier at step {step}")
             save_classifier(network, step, save_dir, hparams)
 
-
-
-    # save plotting data
     plotting_data = {
         'train_losses': train_losses,
         'val_losses': val_losses,
@@ -437,16 +529,32 @@ def main(flags):
     with open(save_dir / 'plotting_data.pkl', 'wb') as f:
         pickle.dump(plotting_data, f)
 
+    if flags.use_wandb:
+        wandb.finish()
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', type=str)
-    parser.add_argument('--save_dir', type=str)
+    parser.add_argument('--env_name', type=str, required=True)
+    parser.add_argument('--save_dir', type=str, required=False, default='exp/multitask_RL/CLASSIFIERS/')
+    parser.add_argument('--task_name', type=str, default='')
+    parser.add_argument('--run_prefix', type=str, required=True)
+    parser.add_argument('--wandb_group', type=str, default='language_classifier_train')
+    parser.add_argument('--wandb_entity', type=str, default='yajatyadav')
+    parser.add_argument('--wandb_project', type=str, default='multitask_RL')
     parser.add_argument('--language_embedder', type=str, default='bert')
     parser.add_argument('--batch_level_sampling', type=bool, default=True)
     parser.add_argument('--horizon_length', type=int, default=5)
     parser.add_argument('--p_drop_state', type=float, default=0.5)
-    parser.add_argument('--NUM_TRAIN_DEMOS', type=int, default=25)
+    parser.add_argument('--NUM_TRAIN_DEMOS', type=int, required=True)
+    parser.add_argument('--num_epochs', type=int, default=10)
+    parser.add_argument('--lr', type=float, default=3e-4)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--save_every', type=int, default=None)
+    parser.add_argument('--val_interval', type=int, default=25)
+    parser.add_argument('--num_val_tasks', type=int, default=10)
+    parser.add_argument('--use_wandb', action='store_true', default=True)
+    parser.add_argument('--no_wandb', action='store_false', dest='use_wandb')
     flags = parser.parse_args()
     main(flags)

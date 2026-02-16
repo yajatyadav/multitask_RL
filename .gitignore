@@ -12,3 +12,5 @@ bcactor_collected_rollouts/
 wandb/
 *.pkl
 *.mp4
+*.err
+*.out
