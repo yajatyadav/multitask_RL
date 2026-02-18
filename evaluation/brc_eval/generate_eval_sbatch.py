@@ -177,7 +177,7 @@ def parse_args():
     parser.add_argument(
         "--num_env_chunks",
         type=int,
-        default=8,
+        default=10,
         help="Each N is split into this many env-chunk jobs.",
     )
 
